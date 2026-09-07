@@ -57,3 +57,14 @@ input,select,textarea,button{font:inherit;color:white;background:#0a0f18;border:
 .uploadButton input{display:none}
 .footer a{color:#9aa8c0;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:700px){.screenshotInline{grid-template-columns:1fr}.uploadButton{width:100%}.scheduleCount{align-items:flex-start}}
+
+.languageSwitch{width:auto;min-width:72px;padding:9px 10px;font-weight:900;border-radius:10px}
+.competitionBadge.textBadge{background:#111827;color:#f4f7ff;font-size:9px;font-weight:950;letter-spacing:.06em}
+.competitionBadge.textBadge.small{font-size:8px}
+.tone-skeptical,.tone-doubt{border-color:#5e506d}
+.tone-hate,.kind-hater{border-color:#7a3542;background:linear-gradient(180deg,#181118,#0d121b)}
+.kind-expert{border-color:#365377}
+.kind-fan{border-color:#3b634e}
+.kind-meme{border-color:#644e79}
+.kind-hater .mediaMeta .pill{border-color:#7a3542;color:#ff9ca9}
+.kind-expert .mediaMeta .pill{border-color:#365377;color:#9ec5ff}
