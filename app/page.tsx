@@ -47,11 +47,16 @@ export default async function Home(){
       </section>
       <aside>
         <div className="sectionHead"><h2>Nächstes Spiel</h2></div>
-        {next?<div className="card nextGame">
+        {next?<Link className="card nextGame nextGameLink" href={`/game/${next.id}#stats`}>
           <div><TeamBadge team={next.away}/></div>
-          <div><div className="teamLine"><strong>{next.away?.city} {next.away?.name}</strong></div><div className="vs">@ {next.game_day}</div><div className="teamLine"><strong>{next.home?.city} {next.home?.name}</strong></div></div>
+          <div>
+            <div className="teamLine"><strong>{next.away?.city} {next.away?.name}</strong></div>
+            <div className="vs">@ {next.game_day}</div>
+            <div className="teamLine"><strong>{next.home?.city} {next.home?.name}</strong></div>
+            <small className="nextGameAction">Spiel öffnen & Stats eintragen →</small>
+          </div>
           <div><TeamBadge team={next.home}/></div>
-        </div>:<div className="card muted">Kein kommendes Spiel im aktuellen Datenbestand.</div>}
+        </Link>:<div className="card muted">Kein kommendes Spiel im aktuellen Datenbestand.</div>}
 
         <div className="sectionHead"><h2>Aktive Storylines</h2></div>
         {(arcs||[]).length?(arcs||[]).map((a:any)=><div className="card" key={a.id}><span className="eyebrow">{a.category}</span><h3>{a.title}</h3><p className="muted">{a.summary}</p></div>):<div className="card muted">Noch keine langfristige Storyline.</div>}
