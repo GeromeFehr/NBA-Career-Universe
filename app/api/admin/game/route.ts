@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 import {detectMilestones} from "@/lib/story";
 import {generateGameMedia} from "@/lib/ai";
+import {updateUniverseAfterGame} from "@/lib/world-engine";
 
 export async function POST(req:Request){
   try{
@@ -68,11 +69,16 @@ export async function POST(req:Request){
     }
 
     const milestones=await detectMilestones(career.id,stat);
+    const lang=universe.language==="en"?"en":"de";
+    const won=teamId===game.home_team_id?homeScore>awayScore:awayScore>homeScore;
+    const lost=teamId===game.home_team_id?homeScore<awayScore:awayScore<homeScore;
+    const result=won?"win":lost?"loss":"unknown";
     await client.from("career_events").insert({
       career_id:career.id,event_date:game.game_day,event_type:"game",
-      title:`${awayScore}-${homeScore} · Game completed`,
+      title:lang==="en"?`${awayScore}-${homeScore} · Game completed`:`${awayScore}-${homeScore} · Spiel abgeschlossen`,
       description:b.storyNotes||`${stat.points} PTS, ${stat.rebounds} REB, ${stat.assists} AST, ${stat.blocks} BLK`,
-      metadata:{game_id:game.id,stat_id:stat.id,universe_id:universe.id}
+      metadata:{game_id:game.id,stat_id:stat.id,universe_id:universe.id},
+      language:lang
     });
 
     await Promise.all([
@@ -81,9 +87,10 @@ export async function POST(req:Request){
       client.from("universes").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",universe.id)
     ]);
 
+    const world=await updateUniverseAfterGame({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat,result});
     let media:any[]=[];
     if(b.autoMedia!==false)media=await generateGameMedia(stat.id);
-    return NextResponse.json({ok:true,statId:stat.id,milestones,mediaCount:media.length});
+    return NextResponse.json({ok:true,statId:stat.id,milestones,mediaCount:media.length,world});
   }catch(e){
     return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
   }
