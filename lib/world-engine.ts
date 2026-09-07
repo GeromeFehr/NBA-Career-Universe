@@ -119,6 +119,56 @@ async function updateRecords(careerId:string,seasonId:string,game:any,stat:any,l
   }
 }
 
+async function rebuildCareerRecords(careerId:string,lang:Lang){
+  const client=db();
+  const {data:rows,error}=await client.from("player_game_stats")
+    .select("*,games(season_id,stage)")
+    .eq("career_id",careerId)
+    .eq("appearance_status","played");
+  if(error)throw error;
+
+  const stats=rows||[];
+  const categories:any[]=[
+    ["points",lang==="en"?"Points":"Punkte"],
+    ["rebounds",lang==="en"?"Rebounds":"Rebounds"],
+    ["assists",lang==="en"?"Assists":"Assists"],
+    ["steals",lang==="en"?"Steals":"Steals"],
+    ["blocks",lang==="en"?"Blocks":"Blocks"],
+    ["tpm",lang==="en"?"Three-pointers made":"Getroffene Dreier"]
+  ];
+
+  await client.from("career_records").delete().eq("career_id",careerId).eq("language",lang);
+
+  const insertBest=async(scope:"career"|"season"|"playoffs",group:any[],seasonId:string|null)=>{
+    if(!group.length)return;
+    for(const [field,label] of categories){
+      const best=[...group].sort((a:any,b:any)=>Number(b[field]||0)-Number(a[field]||0))[0];
+      if(!best)continue;
+      await client.from("career_records").insert({
+        career_id:careerId,
+        season_id:scope==="career"?null:seasonId,
+        scope,
+        category:field==="tpm"?"threes":field,
+        value:Number(best[field]||0),
+        game_id:best.game_id,
+        label,
+        language:lang,
+        updated_at:new Date().toISOString()
+      });
+    }
+  };
+
+  await insertBest("career",stats,null);
+
+  const seasonIds=[...new Set(stats.map((r:any)=>r.games?.season_id).filter(Boolean))] as string[];
+  for(const seasonId of seasonIds){
+    const seasonRows=stats.filter((r:any)=>r.games?.season_id===seasonId);
+    await insertBest("season",seasonRows,seasonId);
+    const playoffRows=seasonRows.filter((r:any)=>isPlayoff(r.games?.stage));
+    await insertBest("playoffs",playoffRows,seasonId);
+  }
+}
+
 async function updateRivalry(career:any,game:any,stat:any,result:"win"|"loss"|"unknown",lang:Lang){
   const client=db();
   const opponent=game.home_team_id===stat.team_id?game.away_team_id:game.home_team_id;
@@ -406,6 +456,30 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
   const next=await nextGame(career,universe,game.game_day);
   if(next)await ensurePregameCoverage(career,universe,next,lang);
   return {grade,legacy:await updateLegacy(career.id)};
+}
+
+export async function refreshDerivedAfterStatEdit({career,universe,game,stat}:{career:any;universe:any;game:any;stat:any}){
+  const client=db();
+  const lang:Lang=universe.language==="en"?"en":"de";
+  const grade=gradeGame(stat);
+  const summary=lang==="en"
+    ?`Overall ${grade.overall_grade}. Scoring ${grade.scoring}/100, playmaking ${grade.playmaking}/100, defense ${grade.defense}/100, efficiency ${grade.efficiency}/100, discipline ${grade.discipline}/100.`
+    :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Effizienz ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
+
+  // Only deterministic derivatives are corrected. Narrative state, reputation,
+  // rivalries, interviews, trade market and media are deliberately untouched.
+  await client.from("postgame_grades").upsert({
+    career_id:career.id,game_id:game.id,language:lang,overall_grade:grade.overall_grade,
+    scoring:grade.scoring,playmaking:grade.playmaking,defense:grade.defense,
+    efficiency:grade.efficiency,discipline:grade.discipline,summary
+  },{onConflict:"career_id,game_id,language"});
+
+  await Promise.all([
+    updateGoals(career,game.season_id,lang),
+    rebuildCareerRecords(career.id,lang)
+  ]);
+
+  return {grade,legacy:await updateLegacy(career.id),mode:"edit"};
 }
 
 export async function answerInterview(careerId:string,interviewId:string,optionId:string){
