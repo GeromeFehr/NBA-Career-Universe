@@ -1,2 +1,14 @@
-import {NextResponse} from "next/server";
-export async function POST(req:Request){const f=await req.formData();const pw=String(f.get("password")||"");if(!process.env.ADMIN_PASSWORD||pw!==process.env.ADMIN_PASSWORD)return NextResponse.redirect(new URL("/login?error=1",req.url),303);const r=NextResponse.redirect(new URL("/admin",req.url),303);r.cookies.set("career_session",process.env.SESSION_TOKEN||"",{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:60*60*24*30});return r}
+import { NextResponse } from "next/server";
+import { authDb } from "@/lib/supabase/server";
+
+export async function POST(req: Request) {
+  const form = await req.formData();
+  const email = String(form.get("email") || "").trim();
+  const password = String(form.get("password") || "");
+
+  const supabase = await authDb();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return NextResponse.redirect(new URL("/login?error=1", req.url), 303);
+
+  return NextResponse.redirect(new URL("/universes", req.url), 303);
+}
