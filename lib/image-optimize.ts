@@ -15,7 +15,13 @@ function asDataUrl(blob:Blob){
   });
 }
 
-export async function optimizeImage(file:File,maxDimension=1600,quality=0.72):Promise<OptimizedImage>{
+function canvasBlob(canvas:HTMLCanvasElement,type:string,quality:number){
+  return new Promise<Blob>((resolve,reject)=>{
+    canvas.toBlob(b=>b?resolve(b):reject(new Error("Image compression failed.")),type,quality);
+  });
+}
+
+export async function optimizeImage(file:File,maxDimension=1440,quality=0.68):Promise<OptimizedImage>{
   const bitmap=await createImageBitmap(file);
   const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
   const width=Math.max(1,Math.round(bitmap.width*scale));
@@ -30,19 +36,25 @@ export async function optimizeImage(file:File,maxDimension=1600,quality=0.72):Pr
   ctx.drawImage(bitmap,0,0,width,height);
   bitmap.close();
 
-  const blob=await new Promise<Blob>((resolve,reject)=>{
-    canvas.toBlob(b=>b?resolve(b):reject(new Error("Image compression failed.")),"image/webp",quality);
-  });
+  const [webp,jpeg]=await Promise.all([
+    canvasBlob(canvas,"image/webp",quality),
+    canvasBlob(canvas,"image/jpeg",Math.min(.76,quality+.04))
+  ]);
+  let best=webp.size<=jpeg.size?webp:jpeg;
+
+  // If recompression somehow gets larger and resizing was not significant,
+  // keep the original upload instead of pretending it was optimized.
+  if(best.size>=file.size*.98&&scale>.9)best=file;
 
   return {
-    dataUrl:await asDataUrl(blob),
+    dataUrl:await asDataUrl(best),
     originalBytes:file.size,
-    optimizedBytes:blob.size,
-    width,height
+    optimizedBytes:best.size,
+    width:best===file?Math.round(width/scale):width,
+    height:best===file?Math.round(height/scale):height
   };
 }
 
 export async function optimizeImages(files:File[],maxFiles=2){
-  const selected=files.slice(0,maxFiles);
-  return Promise.all(selected.map(file=>optimizeImage(file)));
+  return Promise.all(files.slice(0,maxFiles).map(file=>optimizeImage(file)));
 }
