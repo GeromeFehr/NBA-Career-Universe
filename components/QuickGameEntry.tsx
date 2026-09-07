@@ -32,6 +32,8 @@ export default function QuickGameEntry({
   const [scanInfo,setScanInfo]=useState("");
   const editing=Boolean(existingStat||existingResult);
   const en=language==="en";
+  const criticalConfidence=["home_score","away_score","points","rebounds","assists","fgm","fga"];
+  const needsPrecision=Boolean(lastScanPayload)&&criticalConfidence.some(k=>Number(confidence[k]??0)<75);
 
   function setField(name:string,value:any){
     if(value==null||!formRef.current)return;
@@ -177,12 +179,12 @@ export default function QuickGameEntry({
         <b>{k.replaceAll("_"," ")}</b><i>{v}%</i>
       </span>)}
     </div>}
-    {lastScanPayload&&Object.values(confidence).some(v=>Number(v)>0&&Number(v)<75)&&<button
+    {needsPrecision&&<button
       type="button"
       className="secondaryButton precisionRetry"
       disabled={scanBusy}
       onClick={()=>requestScan(lastScanPayload,"high")}
-    >{en?"Recheck uncertain values with high precision":"Unsichere Werte präzise nachprüfen"}</button>}
+    >{en?"Recheck missing/uncertain values with high precision":"Fehlende/unsichere Werte präzise nachprüfen"}</button>}
 
     <form ref={formRef} onSubmit={submit}>
       <div className="grid2">
