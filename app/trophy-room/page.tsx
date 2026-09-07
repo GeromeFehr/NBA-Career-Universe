@@ -9,9 +9,8 @@ export const dynamic="force-dynamic";
 export default async function Page(){
   const {client,career,universe}=await pageContext();
   const lang=langOf(universe),en=lang==="en";
-  const [{data:trophies},{data:records},{data:recaps},{data:legacy},{data:seasons},{data:awards},{data:stats}]=await Promise.all([
+  const [{data:trophies},{data:recaps},{data:legacy},{data:seasons},{data:awards},{data:stats}]=await Promise.all([
     client.from("trophies").select("*,season:season_id(*)").eq("career_id",career.id).eq("language",lang).order("awarded_on",{ascending:false}),
-    client.from("career_records").select("*").eq("career_id",career.id).eq("language",lang).eq("scope","career").order("category"),
     client.from("season_recaps").select("*,season:season_id(*)").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}),
     client.from("legacy_scores").select("*").eq("career_id",career.id).maybeSingle(),
     client.from("seasons").select("*").order("start_date"),
