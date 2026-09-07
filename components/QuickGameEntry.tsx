@@ -133,7 +133,8 @@ export default function QuickGameEntry({
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-      setMsg(editing?(en?"Game updated.":"Spiel aktualisiert."):(en?"Game saved.":"Spiel gespeichert."));
+      const base=editing?(en?"Game updated.":"Spiel aktualisiert."):(en?"Game saved.":"Spiel gespeichert.");
+      setMsg(j.mediaWarning?base+" · "+j.mediaWarning:base);
       router.refresh();
     }catch(err:any){
       setMsg(`${en?"Error":"Fehler"}: ${err.message}`);
