@@ -20,8 +20,9 @@ export default function QuickGameEntry({
   game,
   existingStat,
   existingResult,
+  existingNotables=[],
   language
-}:{game:any;existingStat:any;existingResult:any;language:"de"|"en"}){
+}:{game:any;existingStat:any;existingResult:any;existingNotables?:any[];language:"de"|"en"}){
   const router=useRouter();
   const formRef=useRef<HTMLFormElement>(null);
   const [busy,setBusy]=useState(false);
@@ -128,13 +129,16 @@ export default function QuickGameEntry({
           injuryNote:f.get("injuryNote"),
           storyNotes:f.get("storyNotes"),
           notableText:f.get("notables"),
-          autoMedia:f.get("autoMedia")==="on"
+          autoMedia:editing?false:f.get("autoMedia")==="on"
         })
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
       const base=editing?(en?"Game updated.":"Spiel aktualisiert."):(en?"Game saved.":"Spiel gespeichert.");
-      setMsg(j.mediaWarning?base+" · "+j.mediaWarning:base);
+      const preserved=editing?(en
+        ?" Existing news, social posts, storylines, rivalries and trade events were preserved."
+        :" Bestehende News, Social Posts, Storylines, Rivalries und Trade-Events wurden nicht neu erzeugt."):"";
+      setMsg((j.mediaWarning?base+" · "+j.mediaWarning:base)+preserved);
       router.refresh();
     }catch(err:any){
       setMsg(`${en?"Error":"Fehler"}: ${err.message}`);
@@ -171,7 +175,13 @@ export default function QuickGameEntry({
     </div>
 
     <p className="muted">
-      {en?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards.":"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert."}
+      {editing
+        ?(en
+          ?"Correction mode: only the saved game data and deterministic derived stats are corrected. Existing news, social posts, interviews, rivalries, trade activity and storylines stay untouched."
+          :"Korrekturmodus: Es werden nur die gespeicherten Spielwerte und daraus berechenbare Werte korrigiert. Bestehende News, Social Posts, Interviews, Rivalries, Trade-Aktivität und Storylines bleiben unverändert.")
+        :(en
+          ?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards."
+          :"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert.")}
     </p>
     {msg&&<div className="notice inlineNotice">{msg}</div>}
     {scanInfo&&<p className="muted scanSavings">⚡ {scanInfo}</p>}
@@ -219,7 +229,7 @@ export default function QuickGameEntry({
         <label><input type="checkbox" name="fouledOut" defaultChecked={Boolean(existingStat?.fouled_out)}/>{en?" Fouled out":" Ausgefoult"}</label>
         <label><input type="checkbox" name="ejected" defaultChecked={Boolean(existingStat?.ejected)}/> Ejected</label>
         <label><input type="checkbox" name="injured" defaultChecked={Boolean(existingStat?.injured)}/>{en?" Injured":" Verletzt"}</label>
-        <label><input type="checkbox" name="autoMedia" defaultChecked={!editing}/>{editing?(en?"Generate new AI coverage":"Neue KI-Berichte erzeugen"):(en?"Generate AI media automatically":"KI-Medien automatisch")}</label>
+        {!editing&&<label><input type="checkbox" name="autoMedia" defaultChecked/>{en?" Generate AI media automatically":" KI-Medien automatisch"}</label>}
       </div>
 
       <label>{en?"Injury / status":"Verletzung / Status"}<textarea name="injuryNote" defaultValue={existingStat?.injury_note||""}/></label>
@@ -227,7 +237,9 @@ export default function QuickGameEntry({
         <textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""}
           placeholder={en?"Example: 18 points in the fourth, blocked the star, got a tech after trash talk…":"Beispiel: 18 Punkte im 4. Viertel, Star geblockt, Tech nach Trash Talk…"}/>
       </label>
-      <label>{en?"Other notable players / box-score notes":"Andere auffällige Spieler / Boxscore-Notizen"}<textarea name="notables" placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
+      <label>{en?"Other notable players / box-score notes":"Andere auffällige Spieler / Boxscore-Notizen"}<textarea name="notables"
+        defaultValue={(existingNotables||[]).map((x:any)=>[x.player_name,x.team_abbreviation,x.note].filter(Boolean).join(" | ")).join("\n")}
+        placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
 
       <button disabled={busy}>{busy?(en?"Saving…":"Speichere…"):editing?(en?"Save changes":"Änderungen speichern"):(en?"Complete game + save stats":"Spiel abschließen + Stats speichern")}</button>
     </form>
