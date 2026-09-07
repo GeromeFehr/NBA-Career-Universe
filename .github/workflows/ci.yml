@@ -24,5 +24,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Dependency audit
+        run: npm audit --json || true
       - run: npm run check
       - run: npm run build
