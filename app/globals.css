@@ -563,3 +563,22 @@ label>input,label>select,label>textarea{margin-top:6px}
 .rivalryCard .rivalryTop strong{font-size:15px}
 .rivalryCard .rivalryTop small{font-size:11px}
 .rivalryCard p{margin-bottom:0}
+
+/* Press room variety */
+.pressStack{display:grid;gap:16px}
+.interviewCard{overflow:hidden}
+.interviewMeta{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.interviewMeta>div{min-width:0}
+.interviewMeta strong{display:block;margin-top:5px;font-size:13px;color:#dce5f4}
+.interviewContext{display:inline-flex;margin:0 0 12px;padding:7px 9px;border:1px solid #2e3c54;border-radius:9px;background:#0d1420;color:#97a6bc;font-size:10px;line-height:1.35}
+.interviewOptions button{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-height:94px;line-height:1.4}
+.answerStyle{display:inline-flex;padding:3px 7px;border-radius:999px;background:#26324a;color:#9fb0c9;font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.interviewTone-critical,.interviewTone-controversy{border-color:#653845}
+.interviewTone-clutch,.interviewTone-record,.interviewTone-spotlight{border-color:#584364}
+.interviewTone-technical{border-color:#365377}
+.interviewTone-rivalry{border-color:#70402f}
+.interviewTone-rumor{border-color:#5c3f50}
+@media(max-width:680px){
+  .interviewMeta{align-items:flex-start}
+  .interviewOptions button{min-height:0}
+}
