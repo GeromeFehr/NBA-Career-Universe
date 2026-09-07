@@ -13,10 +13,10 @@ export default async function Home(){
   const lang=langOf(universe);
   const [{data:stats},{data:media},careerGames,{data:arcs},{data:milestones}]=await Promise.all([
     client.from("player_game_stats").select("*").eq("career_id",career.id).order("created_at"),
-    client.from("media_posts").select("*").eq("career_id",career.id).order("created_at",{ascending:false}).limit(12),
+    client.from("media_posts").select("*").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(12),
     loadCareerSchedule(client,career,universe),
-    client.from("story_arcs").select("*").eq("career_id",career.id).eq("status","active").limit(6),
-    client.from("milestones").select("*").eq("career_id",career.id).order("achieved_at",{ascending:false}).limit(6)
+    client.from("story_arcs").select("*").eq("career_id",career.id).eq("language",lang).eq("status","active").limit(6),
+    client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false}).limit(6)
   ]);
   const s=summarizeStats(stats||[]);
   const next=careerGames.find((g:any)=>g.status!=="completed"&&g.game_day>=career.universe_date);
