@@ -22,7 +22,7 @@ export default function ScheduleExplorer({games,teams,universeDate}:{games:any[]
       {filtered.map(g=><Link href={`/game/${g.id}`} key={g.id} className={`scheduleRow ${g.game_day===universeDate?"todayRow":""}`}>
         <div><b>{g.game_day}</b><small>{new Date(g.game_date).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"})}</small></div>
         <div className="matchup"><TeamBadge team={g.away} small/><strong>{g.away?.city} {g.away?.name}</strong><span>@</span><TeamBadge team={g.home} small/><strong>{g.home?.city} {g.home?.name}</strong></div>
-        <div className="score">{g.status==="completed"?`${g.away_score} : ${g.home_score}`:"–"}</div>
+        <div className="score">{g.status==="completed"?`${g.away_score} : ${g.home_score}`:<span className="scheduleAction">Stats →</span>}</div>
         <div><span className="pill">{g.stage||"Regular"}</span></div>
       </Link>)}
       {!filtered.length&&<div className="empty">Keine Spiele für diesen Filter.</div>}
