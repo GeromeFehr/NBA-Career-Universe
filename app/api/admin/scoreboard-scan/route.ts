@@ -90,7 +90,7 @@ Extract only visible values. Never guess. Use null for missing values. Return te
       const response=await ai.responses.create({
         model:modelName,
         store:false,
-        reasoning:{effort:"none"},
+        reasoning:{effort:"low"},
         max_output_tokens:maxOutputTokens,
         input:[{role:"user",content:inputContent}],
         text:responseFormat
