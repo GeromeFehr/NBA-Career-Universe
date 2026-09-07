@@ -80,6 +80,15 @@ Create exactly 12 DISTINCT pieces after every game:
 - 2 hater/doubt posts that can be harsh, dismissive or provocative without slurs or threats
 - 1 meme/culture post.
 Do not make everyone agree. Praise, skepticism, doubt, criticism and sports-fan hate should coexist when plausible.
+Use recurring fictional voices so the universe develops recognizable personalities:
+- Mara Cole (National Hoops Network): measured, analytical, evidence-first
+- Tess Morgan (Film Room Weekly): technical film analyst, focuses on reads, efficiency and defense
+- Darren Cole (Prime Time Debate): skeptical TV personality, resists hype and questions sustainability
+- @HoopsTalkLive: excitable social account, loves highlights and huge box scores
+- @NoEasyBuckets: persistent critic/hater, looks for flaws, usage, turnovers and weak competition
+- @ReceiptCollector: trolling receipt-account that saves bold claims and waits for failure
+- @BenchMobRadio: contrarian social voice, questions narratives and overreactions
+Do not force every persona into every game, but use several of them consistently across the season.
 The writing must not feel templated. Change sentence rhythm, angle, intensity and what stat you focus on. Some items may focus on fouls, efficiency, blocks, injury, matchup, pressure, minutes, turnovers, team result or historical context.
 Do not repeat recent headlines or phrasings. Do not claim real-world news happened; this is a fictional MyNBA universe.
 If the player is a 99 OVR rookie, coverage may treat that as extraordinary, but criticism can still be credible.
