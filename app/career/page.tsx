@@ -1,8 +1,9 @@
 import {pageContext} from "@/lib/universe";
-import {summarizeStats} from "@/lib/stats";
+import {summarizeStats,summarizeCareerMarks} from "@/lib/stats";
 import {langOf,t} from "@/lib/i18n";
 import StatCard from "@/components/StatCard";
 import TeamBadge from "@/components/TeamBadge";
+import CareerMarks from "@/components/CareerMarks";
 
 export const dynamic="force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function Page(){
     client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false})
   ]);
   const x=summarizeStats(s||[]);
+  const marks=summarizeCareerMarks(s||[]);
   const today=en?"today":"heute";
 
   return <>
@@ -35,8 +37,12 @@ export default async function Page(){
       <div className="statGrid">
         <StatCard label="Games" value={x.games}/><StatCard label="PPG" value={x.ppg.toFixed(1)}/><StatCard label="RPG" value={x.rpg.toFixed(1)}/>
         <StatCard label="APG" value={x.apg.toFixed(1)}/><StatCard label="SPG" value={x.spg.toFixed(1)}/><StatCard label="BPG" value={x.bpg.toFixed(1)}/>
-        <StatCard label="High PTS" value={x.careerHighPoints}/><StatCard label="High BLK" value={x.careerHighBlocks}/>
       </div>
+    </section>
+
+    <section className="dashboardSection">
+      <div className="sectionHead dashboardSectionHead"><div><span className="eyebrow">CAREER MARKS</span><h2>{en?"Career Highs & Big Games":"Career Highs & Big Games"}</h2></div></div>
+      <CareerMarks marks={marks} language={lang}/>
     </section>
 
     <div className="dashboardGrid dashboardWorkspace">
