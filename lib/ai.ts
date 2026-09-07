@@ -7,35 +7,44 @@ const hasAi = () => Boolean(process.env.OPENAI_API_KEY);
 
 function fallbackCoverage(ctx:any) {
   const s=ctx.stat, p=ctx.career?.player_name || "Rookie", score=performanceScore(s), facts=headlineFacts(s);
-  const hook=facts[0] || `${s.points} Punkte`;
-  const win = ctx.result === "win";
-  const variants = [
-    {outlet:"National Hoops Network",kind:"analysis",author_name:"Mara Cole",tone:"analytical",
-      headline:`${p} verschiebt mit ${hook} die Erwartungen`,
-      body:`Das Ergebnis war ${win?"ein Sieg":"eine Niederlage"}, doch die größere Story ist die Art, wie ${p} das Spiel beeinflusste. Performance-Index ${score}/100. Die nächsten Gegner werden vor allem auf die auffälligen Kategorien reagieren müssen.`},
-    {outlet:"The Hardwood Wire",kind:"article",author_name:"Jon Mercer",tone:"measured",
-      headline:`Rookie-Watch: ${p} liefert das nächste Ausrufezeichen`,
-      body:`Nicht jede Zahl erzählt dieselbe Geschichte. Heute stechen ${facts.join(", ") || "die Gesamtwirkung"} heraus. Entscheidend wird sein, ob dieses Level über mehrere Wochen hält.`},
-    {outlet:"Bay Beat",kind:"beat",author_name:"Avery Lin",tone:"local",
-      headline:`Aus der Kabine: Alles dreht sich um ${p}`,
-      body:`Im Umfeld des Teams geht es weniger um eine einzelne Highlight-Sequenz als um die komplette Belastung des Spiels. ${s.minutes} Minuten, ${s.turnovers} Turnover und ${s.fouls} Fouls liefern neben den Highlights auch Ansatzpunkte.`},
-    {outlet:"HoopsTalk",kind:"social",author_name:"@HoopsTalkLive",tone:"hype",
-      headline:`${p}. Das war absurd.`,
-      body:`${s.points} PTS · ${s.rebounds} REB · ${s.assists} AST · ${s.blocks} BLK. Das Internet wird dieses Boxscore noch eine Weile auseinandernehmen.`},
-    {outlet:"Fourth Quarter Replies",kind:"social",author_name:"@NoEasyBuckets",tone:"critical",
-      headline:`Große Zahlen, aber ich will den nächsten Test sehen`,
-      body:`Ja, die Statline ist brutal. Trotzdem: ${s.fga} Würfe, ${s.turnovers} Turnover, ${s.fouls} Fouls. Jetzt kommt die Frage, wie Teams nach dem ersten Scouting-Report reagieren.`},
-    {outlet:"Tunnel Cam",kind:"wildcard",author_name:"Nico Vale",tone:"culture",
-      headline:`Die Liga hat einen neuen Termin im Kalender`,
-      body:`Wenn ein Rookie solche Boxscores produziert, wird aus einem normalen Regular-Season-Spiel plötzlich Pflichtprogramm. Der Hype ist jetzt Teil der Story – genauso wie der Druck.`}
+  const lang=ctx.career?.universes?.language==="en"?"en":"de";
+  const win=ctx.result==="win";
+  if(lang==="en"){
+    return [
+      {outlet:"National Hoops Network",kind:"analysis",author_name:"Mara Cole",tone:"analytical",headline:`${p} forces a new conversation`,body:`The result was ${win?"a win":"a loss"}, but the bigger story was the total impact. Performance index: ${score}/100. Opponents now have real film to counter.`,virality:63},
+      {outlet:"The Hardwood Wire",kind:"recap",author_name:"Jon Mercer",tone:"measured",headline:`Rookie watch: another statement from ${p}`,body:`${facts.join(", ")||"The overall impact"} stood out. The question now is whether this level survives the next wave of scouting adjustments.`,virality:58},
+      {outlet:"Bay Beat",kind:"beat",author_name:"Avery Lin",tone:"local",headline:`Inside the locker room: all eyes on ${p}`,body:`${s.minutes} minutes, ${s.turnovers} turnovers and ${s.fouls} fouls show there are still pressure points behind the headline numbers.`,virality:51},
+      {outlet:"Film Room Weekly",kind:"expert",author_name:"Tess Morgan",tone:"technical",headline:"The counter-scouting phase starts now",body:"The next test is not raw production. It is how the player responds when opponents take away first options and force tougher reads.",virality:47},
+      {outlet:"Prime Time Debate",kind:"expert",author_name:"Darren Cole",tone:"skeptical",headline:"Slow down on the superstar talk",body:"One huge box score does not erase shot selection, turnovers or matchup context. The talent is obvious. The proof still has to stack up.",virality:76},
+      {outlet:"HoopsTalk",kind:"social",author_name:"@HoopsTalkLive",tone:"hype",headline:`${p}. Absolutely ridiculous.`,body:`${s.points} PTS · ${s.rebounds} REB · ${s.assists} AST · ${s.blocks} BLK. The timeline is losing it.`,virality:91},
+      {outlet:"No Easy Buckets",kind:"hater",author_name:"@NoEasyBuckets",tone:"critical",headline:"Nice numbers. Show me the next one.",body:`${s.fga} shots, ${s.turnovers} turnovers, ${s.fouls} fouls. I am not crowning anybody after one night.`,virality:83},
+      {outlet:"Fourth Quarter Replies",kind:"social",author_name:"@BenchMobRadio",tone:"doubt",headline:"Are we ignoring the usage?",body:"The production is wild, but the workload is wild too. Efficiency and decision-making will matter when the defense tightens.",virality:72},
+      {outlet:"Fan Section 12",kind:"fan",author_name:"@DubNationNorth",tone:"hype",headline:"This is must-watch basketball now",body:"Every possession feels like something can happen. The energy around this rookie run is getting ridiculous.",virality:79},
+      {outlet:"Tunnel Cam",kind:"meme",author_name:"Nico Vale",tone:"culture",headline:"The league has a new appointment",body:"A normal regular-season game just turned into appointment viewing. Hype is officially part of the matchup.",virality:69},
+      {outlet:"Cold Take Archive",kind:"hater",author_name:"@ReceiptCollector",tone:"hate",headline:"Save the screenshots",body:"If this falls off in two weeks, everyone pretending they knew all along is getting quoted back.",virality:88},
+      {outlet:"Postgame Desk",kind:"expert",author_name:"Renee Ward",tone:"balanced",headline:"Brilliant night, still unanswered questions",body:"The ceiling looks absurd. The next layer is consistency, defensive discipline and decision-making under pressure.",virality:61}
+    ];
+  }
+  return [
+    {outlet:"National Hoops Network",kind:"analysis",author_name:"Mara Cole",tone:"analytical",headline:`${p} verschiebt die Diskussion`,body:`Das Ergebnis war ${win?"ein Sieg":"eine Niederlage"}, aber die größere Story war die Gesamtwirkung. Performance-Index: ${score}/100. Die Gegner haben jetzt echtes Film-Material für Anpassungen.`,virality:63},
+    {outlet:"The Hardwood Wire",kind:"recap",author_name:"Jon Mercer",tone:"measured",headline:`Rookie-Watch: das nächste Ausrufezeichen von ${p}`,body:`${facts.join(", ")||"Die Gesamtwirkung"} stach heraus. Jetzt geht es darum, ob dieses Level auch gegen gezielte Gegenmaßnahmen hält.`,virality:58},
+    {outlet:"Bay Beat",kind:"beat",author_name:"Avery Lin",tone:"local",headline:`Aus der Kabine: Alles dreht sich um ${p}`,body:`${s.minutes} Minuten, ${s.turnovers} Turnover und ${s.fouls} Fouls zeigen, dass hinter den Schlagzeilen weiterhin Ansatzpunkte liegen.`,virality:51},
+    {outlet:"Film Room Weekly",kind:"expert",author_name:"Tess Morgan",tone:"technical",headline:"Jetzt beginnt das Counter-Scouting",body:"Der nächste Test ist nicht rohe Produktion. Entscheidend wird, wie er reagiert, wenn Gegner erste Optionen wegnehmen und schwierige Reads erzwingen.",virality:47},
+    {outlet:"Prime Time Debate",kind:"expert",author_name:"Darren Cole",tone:"skeptical",headline:"Mit dem Superstar-Gerede mal langsam",body:"Ein riesiger Boxscore löscht Wurfauswahl, Turnover oder Matchup-Kontext nicht aus. Das Talent ist offensichtlich. Der Beweis muss sich trotzdem über Wochen stapeln.",virality:76},
+    {outlet:"HoopsTalk",kind:"social",author_name:"@HoopsTalkLive",tone:"hype",headline:`${p}. Komplett absurd.`,body:`${s.points} PTS · ${s.rebounds} REB · ${s.assists} AST · ${s.blocks} BLK. Die Timeline dreht durch.`,virality:91},
+    {outlet:"No Easy Buckets",kind:"hater",author_name:"@NoEasyBuckets",tone:"critical",headline:"Schöne Zahlen. Zeig mir das nächste Spiel.",body:`${s.fga} Würfe, ${s.turnovers} Turnover, ${s.fouls} Fouls. Ich kröne hier nach einer Nacht noch niemanden.`,virality:83},
+    {outlet:"Fourth Quarter Replies",kind:"social",author_name:"@BenchMobRadio",tone:"doubt",headline:"Ignorieren wir gerade die Usage?",body:"Die Produktion ist wild, die Belastung aber genauso. Effizienz und Entscheidungen werden wichtiger, sobald die Defense enger wird.",virality:72},
+    {outlet:"Fan Section 12",kind:"fan",author_name:"@DubNationNorth",tone:"hype",headline:"Das ist jetzt Pflichtprogramm",body:"Bei jedem Ballbesitz kann irgendetwas passieren. Der Hype um diesen Rookie-Run wird langsam lächerlich groß.",virality:79},
+    {outlet:"Tunnel Cam",kind:"meme",author_name:"Nico Vale",tone:"culture",headline:"Die Liga hat einen neuen Termin",body:"Aus einem normalen Regular-Season-Spiel ist Pflichtprogramm geworden. Der Hype ist jetzt offiziell Teil des Matchups.",virality:69},
+    {outlet:"Cold Take Archive",kind:"hater",author_name:"@ReceiptCollector",tone:"hate",headline:"Speichert euch die Screenshots",body:"Wenn das in zwei Wochen abfällt, werden alle, die jetzt so tun als hätten sie es immer gewusst, wieder zitiert.",virality:88},
+    {outlet:"Postgame Desk",kind:"expert",author_name:"Renee Ward",tone:"balanced",headline:"Brillante Nacht, aber noch offene Fragen",body:"Die Ceiling sieht absurd aus. Die nächste Ebene heißt Konstanz, defensive Disziplin und Entscheidungen unter Druck.",virality:61}
   ];
-  return variants;
 }
 
 export async function buildGameContext(statId:string) {
   const client=db();
   const {data:stat,error}=await client.from("player_game_stats")
-    .select("*,career_profiles(*),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
+    .select("*,career_profiles(*,universes(language)),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
     .eq("id",statId).single();
   if (error || !stat) throw new Error("Stat line not found");
   const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame}] = await Promise.all([
@@ -62,8 +71,15 @@ export async function generateGameMedia(statId:string) {
   if (hasAi()) {
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
     const prompt=`You are the editorial engine for a PRIVATE fictional NBA MyNBA career universe.
-Write in German. Treat supplied game/career data as canon. Never invent exact stats for another player unless present in NOTABLES.
-Create 8 DISTINCT pieces: national analysis, newspaper recap, local beat report, TV debate take, fan post, skeptical/hater post, meme/culture post, and one wildcard.
+Write exclusively in ${ctx.career?.universes?.language==="en"?"English":"German"}. Treat supplied game/career data as canon. Never invent exact stats for another player unless present in NOTABLES.
+Create exactly 12 DISTINCT pieces after every game:
+- 2 traditional media pieces (analysis/recap/beat)
+- 3 expert or TV analyst opinions, with at least one skeptical or critical voice
+- 3 social-media reactions from fictional accounts
+- 1 fan reaction
+- 2 hater/doubt posts that can be harsh, dismissive or provocative without slurs or threats
+- 1 meme/culture post.
+Do not make everyone agree. Praise, skepticism, doubt, criticism and sports-fan hate should coexist when plausible.
 The writing must not feel templated. Change sentence rhythm, angle, intensity and what stat you focus on. Some items may focus on fouls, efficiency, blocks, injury, matchup, pressure, minutes, turnovers, team result or historical context.
 Do not repeat recent headlines or phrasings. Do not claim real-world news happened; this is a fictional MyNBA universe.
 If the player is a 99 OVR rookie, coverage may treat that as extraordinary, but criticism can still be credible.
@@ -86,7 +102,7 @@ ${crypto.randomUUID()}`;
         type:"json_schema",name:"game_media_pack",strict:true,
         schema:{
           type:"object",additionalProperties:false,required:["items"],
-          properties:{items:{type:"array",minItems:8,maxItems:8,items:{
+          properties:{items:{type:"array",minItems:12,maxItems:12,items:{
             type:"object",additionalProperties:false,
             required:["outlet","kind","author_name","tone","headline","body","virality"],
             properties:{
@@ -117,7 +133,7 @@ ${crypto.randomUUID()}`;
 
 export async function generateWorldPulse(careerId:string) {
   const client=db();
-  const {data:career}=await client.from("career_profiles").select("*,current_team:teams(*)").eq("id",careerId).single();
+  const {data:career}=await client.from("career_profiles").select("*,current_team:teams(*),universes(language)").eq("id",careerId).single();
   if (!career) throw new Error("Career not found");
   const [{data:stats},{data:offers},{data:arcs},{data:nextGames},{data:recent}] = await Promise.all([
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(10),
@@ -131,7 +147,7 @@ export async function generateWorldPulse(careerId:string) {
   let items:any[]=[];
   if (hasAi()) {
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
-    const prompt=`Generate a German-language daily media pulse for a fictional MyNBA career world. Four varied items, no duplicated angles.
+    const prompt=`Generate a ${career?.universes?.language==="en"?"English":"German"} daily media pulse for a fictional MyNBA career world. Four varied items, no duplicated angles.
 Use only supplied canon. You may discuss upcoming matchup pressure, trade chatter, award momentum, team fit, injuries or a developing story arc.
 Do not invent exact stats for unprovided players. Return JSON only.
 ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
@@ -161,7 +177,7 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
 export async function generateTradeMarket(careerId:string) {
   const client=db();
   const [{data:career},{data:teams},{data:stats},{data:recent}] = await Promise.all([
-    client.from("career_profiles").select("*,current_team:teams(*)").eq("id",careerId).single(),
+    client.from("career_profiles").select("*,current_team:teams(*),universes(language)").eq("id",careerId).single(),
     client.from("teams").select("*").eq("active",true),
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(12),
     client.from("trade_interest").select("*,teams(*)").eq("career_id",careerId).order("created_at",{ascending:false}).limit(20)
@@ -171,7 +187,7 @@ export async function generateTradeMarket(careerId:string) {
   let picks:any[]=[];
   if (hasAi()) {
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
-    const prompt=`You run the trade rumor engine for a fictional NBA MyNBA universe.
+    const prompt=`You run the trade rumor engine for a fictional NBA MyNBA universe. Write all user-facing text in ${career?.universes?.language==="en"?"English":"German"}.
 The user-controlled player is rated ${career.overall} OVR. Generate exactly 5 plausible interested teams from the supplied list.
 A 99 OVR rookie is an ultra-premium asset: offers must be massive. Since exact live rosters and future pick ownership are NOT supplied, DO NOT invent named players or exact pick years. Describe packages generically (e.g. "young starter + 3 first-round picks + swap").
 Each offer needs interest_score 0-100, fairness_score 0-100, rationale, package_summary and pressure ("low","medium","high").
