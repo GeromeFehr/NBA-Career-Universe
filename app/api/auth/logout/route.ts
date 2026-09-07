@@ -1,2 +1,11 @@
-import {NextResponse} from "next/server";
-export async function POST(req:Request){const r=NextResponse.redirect(new URL("/",req.url),303);r.cookies.set("career_session","",{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:0});return r}
+import { NextResponse } from "next/server";
+import { authDb } from "@/lib/supabase/server";
+
+export async function POST(req: Request) {
+  const supabase = await authDb();
+  await supabase.auth.signOut();
+
+  const response = NextResponse.redirect(new URL("/login", req.url), 303);
+  response.cookies.set("nba_universe", "", { path: "/", maxAge: 0 });
+  return response;
+}
