@@ -1,6 +1,7 @@
 "use client";
 import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
+import {optimizeImages} from "@/lib/image-optimize";
 
 const statKeys=[
   "minutes","points","rebounds","assists","steals","blocks","turnovers","fouls",
@@ -12,15 +13,6 @@ const labels:Record<string,string>={
   turnovers:"TO",fouls:"PF",technical_fouls:"TECH",flagrant_fouls:"FLG",
   fgm:"FGM",fga:"FGA",tpm:"3PM",tpa:"3PA",ftm:"FTM",fta:"FTA",plus_minus:"+/-"
 };
-
-function readFile(file:File){
-  return new Promise<string>((resolve,reject)=>{
-    const r=new FileReader();
-    r.onload=()=>resolve(String(r.result||""));
-    r.onerror=()=>reject(new Error("Bild konnte nicht gelesen werden."));
-    r.readAsDataURL(file);
-  });
-}
 
 function abbr(v:any){return String(v||"").trim().toUpperCase().replace(/[^A-Z]/g,"")}
 
@@ -36,6 +28,8 @@ export default function QuickGameEntry({
   const [scanBusy,setScanBusy]=useState(false);
   const [msg,setMsg]=useState("");
   const [confidence,setConfidence]=useState<Record<string,number>>({});
+  const [lastScanPayload,setLastScanPayload]=useState<{images:string[];imageMeta:any[]}|null>(null);
+  const [scanInfo,setScanInfo]=useState("");
   const editing=Boolean(existingStat||existingResult);
   const en=language==="en";
 
@@ -45,18 +39,13 @@ export default function QuickGameEntry({
     if(el)el.value=String(value);
   }
 
-  async function scanScreenshots(files:File[]){
-    if(!files.length){setMsg(en?"Please select at least one image.":"Bitte mindestens ein Bild auswählen.");return}
-    const allowed=files.every(f=>["image/jpeg","image/png","image/webp","image/gif"].includes(f.type));
-    if(!allowed){setMsg(en?"Please use JPG, PNG, WEBP or GIF.":"Bitte JPG, PNG, WEBP oder GIF verwenden.");return}
-
+  async function requestScan(payload:{images:string[];imageMeta:any[]},precision:"low"|"high"){
     setScanBusy(true);setMsg("");
     try{
-      const images=await Promise.all(files.slice(0,4).map(readFile));
       const r=await fetch("/api/admin/scoreboard-scan",{
         method:"POST",
         headers:{"content-type":"application/json"},
-        body:JSON.stringify({images,expectedGameId:game.id})
+        body:JSON.stringify({...payload,expectedGameId:game.id,precision})
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
@@ -66,7 +55,7 @@ export default function QuickGameEntry({
       const home=abbr(game.home?.abbreviation),away=abbr(game.away?.abbreviation);
       let homeScore=s.home_score,awayScore=s.away_score;
 
-      if(!s.orientation_confident || homeScore==null || awayScore==null){
+      if(!s.orientation_confident||homeScore==null||awayScore==null){
         const a=abbr(s.team_a),b=abbr(s.team_b);
         if(a===away){awayScore=s.team_a_score;homeScore=s.team_b_score}
         else if(b===away){awayScore=s.team_b_score;homeScore=s.team_a_score}
@@ -79,12 +68,36 @@ export default function QuickGameEntry({
       for(const k of statKeys)setField(k,s.stats?.[k]);
 
       setMsg(
-        `${en?"Screenshot recognized":"Screenshot erkannt"} · Confidence ${s.confidence??0}%`+
+        `${en?"Screenshot recognized":"Screenshot erkannt"} · ${precision==="low"?(en?"economy mode":"Sparmodus"):(en?"high precision":"hohe Genauigkeit")} · Confidence ${s.confidence??0}%`+
         (s.player_found?(en?" · Player stat line imported":" · Spieler-Statline übernommen"):(en?" · Please review player stat line":" · Spieler-Statline bitte prüfen"))
       );
     }catch(err:any){
       setMsg(`${en?"Screenshot import error":"Fehler beim Screenshot-Import"}: ${err.message}`);
     }finally{
+      setScanBusy(false);
+    }
+  }
+
+  async function scanScreenshots(files:File[]){
+    if(!files.length){setMsg(en?"Please select at least one image.":"Bitte mindestens ein Bild auswählen.");return}
+    const allowed=files.every(f=>["image/jpeg","image/png","image/webp","image/gif"].includes(f.type));
+    if(!allowed){setMsg(en?"Please use JPG, PNG, WEBP or GIF.":"Bitte JPG, PNG, WEBP oder GIF verwenden.");return}
+    setScanBusy(true);setMsg("");
+    try{
+      const optimized=await optimizeImages(files,2);
+      const payload={
+        images:optimized.map(x=>x.dataUrl),
+        imageMeta:optimized.map(x=>({
+          originalBytes:x.originalBytes,optimizedBytes:x.optimizedBytes,width:x.width,height:x.height
+        }))
+      };
+      setLastScanPayload(payload);
+      const before=optimized.reduce((a,x)=>a+x.originalBytes,0);
+      const after=optimized.reduce((a,x)=>a+x.optimizedBytes,0);
+      setScanInfo(`${optimized.length} ${en?"image(s)":"Bild(er)"} · ${Math.round(before/1024)} KB → ${Math.round(after/1024)} KB`);
+      await requestScan(payload,"low");
+    }catch(err:any){
+      setMsg(`${en?"Image optimization failed":"Bildoptimierung fehlgeschlagen"}: ${err.message}`);
       setScanBusy(false);
     }
   }
@@ -139,10 +152,10 @@ export default function QuickGameEntry({
     <div className="screenshotInline">
       <div>
         <b>{en?"Screenshot / phone photo":"Screenshot / Handyfoto"}</b>
-        <p className="muted">{en?"Choose a scoreboard or box-score image – recognized values are filled into this game.":"Scoreboard oder Boxscore auswählen – erkannte Werte werden direkt in dieses Match übernommen."}</p>
+        <p className="muted">{en?"Start with one image. It is resized and scanned in economy mode; add a second only if important values are missing.":"Starte möglichst mit einem Bild. Es wird verkleinert und im Sparmodus gelesen; ein zweites Bild nur bei fehlenden Werten."}</p>
       </div>
       <label className="uploadButton">
-        {scanBusy?(en?"Analyzing…":"Analysiere…"):(en?"Choose screenshot(s)":"Screenshot(s) auswählen")}
+        {scanBusy?(en?"Analyzing…":"Analysiere…"):(en?"Choose 1–2 screenshot(s)":"1–2 Screenshot(s) auswählen")}
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
@@ -158,11 +171,18 @@ export default function QuickGameEntry({
       {en?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards.":"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert."}
     </p>
     {msg&&<div className="notice inlineNotice">{msg}</div>}
+    {scanInfo&&<p className="muted scanSavings">⚡ {scanInfo}</p>}
     {Object.keys(confidence).length>0&&<div className="confidenceGrid">
       {Object.entries(confidence).filter(([,v])=>Number(v)>0).map(([k,v])=><span className={`confidenceChip ${Number(v)<70?"low":Number(v)<90?"mid":"high"}`} key={k}>
         <b>{k.replaceAll("_"," ")}</b><i>{v}%</i>
       </span>)}
     </div>}
+    {lastScanPayload&&Object.values(confidence).some(v=>Number(v)>0&&Number(v)<75)&&<button
+      type="button"
+      className="secondaryButton precisionRetry"
+      disabled={scanBusy}
+      onClick={()=>requestScan(lastScanPayload,"high")}
+    >{en?"Recheck uncertain values with high precision":"Unsichere Werte präzise nachprüfen"}</button>}
 
     <form ref={formRef} onSubmit={submit}>
       <div className="grid2">
