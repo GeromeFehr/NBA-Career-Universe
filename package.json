@@ -1,6 +1,6 @@
 {
   "name": "nba-career-universe",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "schedule:import": "node scripts/import-schedule.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.57.0",
     "next": "^15.5.0",
     "openai": "^5.19.0",
