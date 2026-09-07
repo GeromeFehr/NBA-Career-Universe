@@ -25,8 +25,7 @@ Extract ONLY values clearly visible in the screenshots. Never guess missing numb
 A phone photo may be tilted or contain glare. Multiple images may show the same game and different stat pages.
 Return team abbreviations when possible. If the image does not make home/away orientation clear, still return the two teams and set orientation_confident=false.
 For player stats, look specifically for the controlled player name or a very close shortened form.
-Use null for anything not visible.
-Do not infer date from the website; date is only non-null when visible in the screenshot.
+Use null for anything not visible. For field_confidence, score each extracted field from 0-100 based on visual certainty; use 0 when no value is visible. Be conservative: glare, cropping or ambiguous rows should lower confidence.\nDo not infer date from the website; date is only non-null when visible in the screenshot.
 `;
 
     const inputContent:any[]=[{type:"input_text",text:prompt},...images.map((image_url:string)=>({type:"input_image",image_url,detail:"high"}))];
@@ -38,7 +37,7 @@ Do not infer date from the website; date is only non-null when visible in the sc
         type:"json_schema",name:"nba2k_scoreboard_scan",strict:true,
         schema:{
           type:"object",additionalProperties:false,
-          required:["home_team","away_team","team_a","team_b","home_score","away_score","team_a_score","team_b_score","game_date","orientation_confident","player_found","player_name","stats","notes","confidence"],
+          required:["home_team","away_team","team_a","team_b","home_score","away_score","team_a_score","team_b_score","game_date","orientation_confident","player_found","player_name","stats","field_confidence","notes","confidence"],
           properties:{
             home_team:{type:["string","null"]},away_team:{type:["string","null"]},
             team_a:{type:["string","null"]},team_b:{type:["string","null"]},
@@ -53,6 +52,15 @@ Do not infer date from the website; date is only non-null when visible in the sc
                 fgm:{type:["integer","null"]},fga:{type:["integer","null"]},tpm:{type:["integer","null"]},tpa:{type:["integer","null"]},
                 ftm:{type:["integer","null"]},fta:{type:["integer","null"]},plus_minus:{type:["integer","null"]}
               }},
+            field_confidence:{type:"object",additionalProperties:false,
+              required:["home_score","away_score","minutes","points","rebounds","assists","steals","blocks","turnovers","fouls","fgm","fga","tpm","tpa","ftm","fta","plus_minus"],
+              properties:{
+                home_score:{type:"integer",minimum:0,maximum:100},away_score:{type:"integer",minimum:0,maximum:100},
+                minutes:{type:"integer",minimum:0,maximum:100},points:{type:"integer",minimum:0,maximum:100},rebounds:{type:"integer",minimum:0,maximum:100},assists:{type:"integer",minimum:0,maximum:100},
+                steals:{type:"integer",minimum:0,maximum:100},blocks:{type:"integer",minimum:0,maximum:100},turnovers:{type:"integer",minimum:0,maximum:100},fouls:{type:"integer",minimum:0,maximum:100},
+                fgm:{type:"integer",minimum:0,maximum:100},fga:{type:"integer",minimum:0,maximum:100},tpm:{type:"integer",minimum:0,maximum:100},tpa:{type:"integer",minimum:0,maximum:100},
+                ftm:{type:"integer",minimum:0,maximum:100},fta:{type:"integer",minimum:0,maximum:100},plus_minus:{type:"integer",minimum:0,maximum:100}
+              }},
             notes:{type:"array",items:{type:"string"}},confidence:{type:"integer",minimum:0,maximum:100}
           }
         }
@@ -64,34 +72,60 @@ Do not infer date from the website; date is only non-null when visible in the sc
     const pair=Array.from(new Set(teams)).slice(0,2);
     const date=isoDay(scan.game_date);
 
-    const {data:games}=await client.from("games")
-      .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
-      .or(`universe_id.is.null,universe_id.eq.${universe.id}`)
-      .order("game_date");
-
-    const candidates=(games||[]).filter((g:any)=>{
-      const gp=[g.home?.abbreviation,g.away?.abbreviation];
-      const teamMatch=pair.length===2&&pair.every((a:string)=>gp.includes(a));
-      const currentTeamMatch=gp.includes(career.current_team?.abbreviation);
-      return teamMatch || (pair.length===1&&gp.includes(pair[0])&&currentTeamMatch);
-    }).map((g:any)=>{
-      const d=Math.abs(new Date(g.game_day).getTime()-new Date(date||career.universe_date).getTime());
-      return {...g,distance:d};
-    }).sort((a:any,b:any)=>a.distance-b.distance).slice(0,5);
-
+    let candidates:any[]=[];
     let matchedGameId:string|null=null;
-    if(candidates.length===1)matchedGameId=candidates[0].id;
-    else if(candidates.length>1&&candidates[0].distance<candidates[1].distance)matchedGameId=candidates[0].id;
+    if(b.expectedGameId){
+      const {data:expected}=await client.from("games")
+        .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
+        .eq("id",String(b.expectedGameId))
+        .maybeSingle();
+      if(expected&&(!expected.universe_id||expected.universe_id===universe.id)){
+        candidates=[{...expected,distance:0}];
+        matchedGameId=expected.id;
+      }
+    }
+    if(!matchedGameId){
+      const center=date||career.universe_date;
+      const d0=new Date(center);d0.setDate(d0.getDate()-14);
+      const d1=new Date(center);d1.setDate(d1.getDate()+14);
+      const {data:games}=await client.from("games")
+        .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
+        .gte("game_day",d0.toISOString().slice(0,10))
+        .lte("game_day",d1.toISOString().slice(0,10))
+        .or(`universe_id.is.null,universe_id.eq.${universe.id}`)
+        .or(`home_team_id.eq.${career.current_team_id},away_team_id.eq.${career.current_team_id}`)
+        .order("game_date");
+
+      candidates=(games||[]).filter((g:any)=>{
+        const gp=[g.home?.abbreviation,g.away?.abbreviation];
+        const teamMatch=pair.length===2&&pair.every((a:string)=>gp.includes(a));
+        return teamMatch || pair.length===0;
+      }).map((g:any)=>{
+        const d=Math.abs(new Date(g.game_day).getTime()-new Date(center).getTime());
+        return {...g,distance:d};
+      }).sort((a:any,b:any)=>a.distance-b.distance).slice(0,5);
+
+      if(candidates.length===1)matchedGameId=candidates[0].id;
+      else if(candidates.length>1&&candidates[0].distance<candidates[1].distance)matchedGameId=candidates[0].id;
+    }
 
     const stats:any={};
     for(const [k,v] of Object.entries(scan.stats||{}))stats[k]=n(v);
+
+    await client.from("screenshot_scans").insert({
+      career_id:career.id,game_id:matchedGameId,
+      overall_confidence:Number(scan.confidence||0),
+      field_confidence:scan.field_confidence||{},
+      recognized_values:{...scan,stats},
+      language:universe.language==="en"?"en":"de"
+    });
 
     return NextResponse.json({
       ok:true,
       scan:{...scan,stats},
       matchedGameId,
       candidates:candidates.map((g:any)=>({id:g.id,game_day:g.game_day,home:g.home,away:g.away,stage:g.stage})),
-      message:matchedGameId?"Screenshot erkannt und Spiel zugeordnet.":"Screenshot erkannt. Bitte Spiel prüfen/auswählen."
+      message:universe.language==="en"?(matchedGameId?"Screenshot recognized and matched to the game.":"Screenshot recognized. Please verify/select the game."):(matchedGameId?"Screenshot erkannt und Spiel zugeordnet.":"Screenshot erkannt. Bitte Spiel prüfen/auswählen.")
     });
   }catch(e){
     return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
