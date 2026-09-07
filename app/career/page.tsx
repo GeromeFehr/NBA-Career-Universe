@@ -1,6 +1,6 @@
 import {db} from "@/lib/db"; import {summarizeStats} from "@/lib/stats"; import StatCard from "@/components/StatCard"; import TeamBadge from "@/components/TeamBadge";
 export const dynamic="force-dynamic";
-export default async function Page(){const client=db();const {data:c}=await client.from("career_profiles").select("*,current_team:teams(*)").limit(1).single();
+export default async function Page(){const client=db();const {data:c}=await client.from("career_profiles").select("*,current_team:teams(*)").limit(1).single();if(!c)return <div className="card">Keine Karriere gefunden.</div>;
  const [{data:s},{data:stints},{data:events},{data:injuries},{data:milestones}]=await Promise.all([
   client.from("player_game_stats").select("*,team:teams(*)").eq("career_id",c.id).order("created_at"),
   client.from("team_stints").select("*,teams(*)").eq("career_id",c.id).order("start_date"),
