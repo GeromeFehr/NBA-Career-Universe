@@ -553,3 +553,13 @@ label>input,label>select,label>textarea{margin-top:6px}
   .mediaCard{padding:16px}.mediaCard h3{font-size:17px}
   .gameTeam{flex-direction:column}
 }
+
+.pageIntro{max-width:900px;line-height:1.6;margin:0 0 28px}
+.timelinePanel{overflow:hidden}
+.timelinePanel .timelineItem h3{margin:5px 0 7px;font-size:16px}
+.timelinePanel .timelineItem p{margin:0;color:#aab4c5;line-height:1.55}
+.arcIntensity{font-size:28px;color:#ff9f78}
+.rivalryCard{margin:0}
+.rivalryCard .rivalryTop strong{font-size:15px}
+.rivalryCard .rivalryTop small{font-size:11px}
+.rivalryCard p{margin-bottom:0}
