@@ -89,8 +89,18 @@ export async function POST(req:Request){
 
     const world=await updateUniverseAfterGame({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat,result});
     let media:any[]=[];
-    if(b.autoMedia!==false)media=await generateGameMedia(stat.id);
-    return NextResponse.json({ok:true,statId:stat.id,milestones,mediaCount:media.length,world});
+    let mediaWarning:string|null=null;
+    if(b.autoMedia!==false){
+      try{
+        media=await generateGameMedia(stat.id);
+      }catch(err){
+        mediaWarning=lang==="en"
+          ?"Stats were saved, but media coverage could not be refreshed."
+          :"Stats wurden gespeichert, aber die Medienberichte konnten nicht aktualisiert werden.";
+        console.error("Optional media generation failed",err);
+      }
+    }
+    return NextResponse.json({ok:true,statId:stat.id,milestones,mediaCount:media.length,world,mediaWarning});
   }catch(e){
     return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
   }
