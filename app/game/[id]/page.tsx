@@ -4,12 +4,14 @@ import MediaCard from "@/components/MediaCard";
 import QuickGameEntry from "@/components/QuickGameEntry";
 import CompetitionBadge from "@/components/CompetitionBadge";
 import {pct} from "@/lib/format";
+import {langOf} from "@/lib/i18n";
 
 export const dynamic="force-dynamic";
 
 export default async function Page({params}:{params:Promise<{id:string}>}){
   const {id}=await params;
   const {client,career,universe}=await pageContext();
+  const lang=langOf(universe);
 
   const {data:g}=await client
     .from("games")
@@ -17,8 +19,8 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
     .eq("id",id)
     .single();
 
-  if(!g)return <div>Spiel nicht gefunden.</div>;
-  if(g.universe_id&&g.universe_id!==universe.id)return <div className="card">Dieses Spiel gehört zu einem anderen Universe.</div>;
+  if(!g)return <div>{lang==="en"?"Game not found.":"Spiel nicht gefunden."}</div>;
+  if(g.universe_id&&g.universe_id!==universe.id)return <div className="card">{lang==="en"?"This game belongs to another universe.":"Dieses Spiel gehört zu einem anderen Universe."}</div>;
 
   const [{data:ug},{data:s},{data:n},{data:m},{data:stint}]=await Promise.all([
     client.from("universe_games").select("*").eq("universe_id",universe.id).eq("game_id",id).maybeSingle(),
@@ -48,7 +50,7 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
         <div className="gameScore">{status==="completed"?`${awayScore} : ${homeScore}`:"VS"}</div>
         <div className="gameTeam"><h2>{g.home?.city}<br/>{g.home?.name}</h2><TeamBadge team={g.home}/></div>
       </div>
-      {canEnter&&status!=="completed"&&<a className="buttonLink gameEntryCta" href="#stats">Stats für dieses Spiel eintragen ↓</a>}
+      {canEnter&&status!=="completed"&&<a className="buttonLink gameEntryCta" href="#stats">{lang==="en"?"Enter stats for this game ↓":"Stats für dieses Spiel eintragen ↓"}</a>}
     </section>
 
     {s&&<>
@@ -64,12 +66,12 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
     </>}
 
     {canEnter
-      ? <QuickGameEntry game={g} existingStat={s} existingResult={ug}/>
-      : <div className="card muted">Dieses Spiel gehört nicht zu deinem Team-Stint an diesem Datum und kann deshalb nicht als Karriere-Spiel eingetragen werden.</div>
+      ? <QuickGameEntry game={g} existingStat={s} existingResult={ug} language={lang}/>
+      : <div className="card muted">{lang==="en"?"This game is outside your team stint for this date and cannot be entered as a career game.":"Dieses Spiel gehört nicht zu deinem Team-Stint an diesem Datum und kann deshalb nicht als Karriere-Spiel eingetragen werden."}</div>
     }
 
     {(n||[]).length>0&&<>
-      <div className="sectionHead"><h2>Andere Notables</h2></div>
+      <div className="sectionHead"><h2>{lang==="en"?"Other Notables":"Andere Notables"}</h2></div>
       {n?.map((x:any)=><div className="card" key={x.id}><b>{x.player_name} · {x.team_abbreviation}</b><p>{x.note}</p></div>)}
     </>}
 
