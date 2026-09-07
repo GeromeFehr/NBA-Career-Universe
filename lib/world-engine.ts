@@ -350,25 +350,264 @@ async function updateStoryArcs(career:any,game:any,stat:any,grade:any,lang:Lang)
   }
 }
 
-async function createInterview(career:any,game:any,stat:any,lang:Lang){
+async function createInterview(career:any,game:any,stat:any,grade:any,result:"win"|"loss"|"unknown",lang:Lang){
   const client=db();
-  const {data:exists}=await client.from("interviews").select("id").eq("career_id",career.id).eq("game_id",game.id).eq("language",lang).maybeSingle();
-  if(exists)return;
-  const question=Number(stat.points)>=35
-    ?(lang==="en"?"The hype is getting louder every night. How do you handle it?":"Der Hype wird nach jedem Spiel lauter. Wie gehst du damit um?")
-    :(lang==="en"?"What do you take away from tonight's performance?":"Was nimmst du aus der heutigen Leistung mit?");
-  const options=lang==="en"?[
-    {id:"confident",label:"They can keep talking. I know what I can do.",impact:{hype:5,expert:-1,hater:6}},
-    {id:"team",label:"I only care about winning with this team.",impact:{fans:6,expert:3,hype:-1}},
-    {id:"film",label:"Watch the film. There is still a lot to improve.",impact:{expert:6,hype:-2}},
-    {id:"silent",label:"No comment.",impact:{hype:1,hater:2}}
-  ]:[
-    {id:"confident",label:"Die können weiterreden. Ich weiß, was ich kann.",impact:{hype:5,expert:-1,hater:6}},
-    {id:"team",label:"Mich interessiert nur, mit diesem Team zu gewinnen.",impact:{fans:6,expert:3,hype:-1}},
-    {id:"film",label:"Schaut euch das Tape an. Da gibt es noch viel zu verbessern.",impact:{expert:6,hype:-2}},
-    {id:"silent",label:"Kein Kommentar.",impact:{hype:1,hater:2}}
-  ];
-  await client.from("interviews").insert({career_id:career.id,game_id:game.id,interview_date:game.game_day,question,options,language:lang,status:"open"});
+  const {data:existing}=await client.from("interviews").select("id,topic").eq("career_id",career.id).eq("game_id",game.id).eq("language",lang);
+  if((existing||[]).length)return;
+
+  const opponentId=game.home_team_id===stat.team_id?game.away_team_id:game.home_team_id;
+  const [{data:opponent},{data:recentInterviews},{data:rep},{data:previous},{data:rivalry},{data:tradeSaga}]=await Promise.all([
+    client.from("teams").select("*").eq("id",opponentId).maybeSingle(),
+    client.from("interviews").select("topic,question").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(8),
+    client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle(),
+    client.from("player_game_stats").select("*").eq("career_id",career.id).neq("game_id",game.id).eq("appearance_status","played").order("created_at",{ascending:false}).limit(20),
+    client.from("rivalries").select("*").eq("career_id",career.id).eq("opponent_team_id",opponentId).maybeSingle(),
+    client.from("trade_sagas").select("*,team:target_team_id(*)").eq("career_id",career.id).eq("language",lang).eq("status","active").order("heat",{ascending:false}).limit(1).maybeSingle()
+  ]);
+
+  const en=lang==="en";
+  const scoreFor=(teamId:string)=>teamId===game.home_team_id?Number(game.home_score||0):Number(game.away_score||0);
+  const myScore=scoreFor(stat.team_id);
+  const oppScore=stat.team_id===game.home_team_id?Number(game.away_score||0):Number(game.home_score||0);
+  const margin=Math.abs(myScore-oppScore);
+  const fg=pct(Number(stat.fgm||0),Number(stat.fga||0));
+  const tripleCats=[stat.points,stat.rebounds,stat.assists,stat.steals,stat.blocks].filter((x:any)=>Number(x)>=10).length;
+  const prev=previous||[];
+  const prevMax=(k:string)=>prev.reduce((m:number,r:any)=>Math.max(m,Number(r[k]||0)),0);
+  const gameNo=prev.length+1;
+  const recentTopics=new Set((recentInterviews||[]).map((x:any)=>String(x.topic||"")));
+  const teamName=opponent?opponent.city+" "+opponent.name:(en?"the opponent":"den Gegner");
+
+  const style=(de:string,enText:string)=>en?enText:de;
+  const opts=(topic:string)=>{
+    const common:any={
+      hype:[
+        {id:"confident",style:style("Selbstbewusst","Confident"),label:style("Wenn sie reden wollen, sollen sie reden. Ich weiß, was ich kann.","If they want to talk, let them talk. I know what I can do."),impact:{hype:5,star:3,hater:5}},
+        {id:"team",style:"Team-first",label:style("Der Hype ist egal. Entscheidend ist, dass wir gewinnen.","The hype does not matter. What matters is that we win."),impact:{fans:5,expert:3,hype:-2}},
+        {id:"grounded",style:style("Geerdet","Grounded"),label:style("Es waren gute Minuten, aber ich habe noch nichts erreicht.","It was a good night, but I have not accomplished anything yet."),impact:{expert:5,hype:-2,hater:-2}},
+        {id:"spicy",style:style("Provokant","Spicy"),label:style("Vielleicht müssen sich die Leute langsam daran gewöhnen.","Maybe people should start getting used to it."),impact:{hype:7,star:4,hater:8,culture:3}}
+      ],
+      defense:[
+        {id:"anchor",style:style("Ansage","Statement"),label:style("Wenn ich am Ring bin, sollen sie zweimal überlegen.","If I am at the rim, they should think twice."),impact:{hype:4,star:3,hater:3}},
+        {id:"scheme",style:style("Analytisch","Analytical"),label:style("Das war Team-Defense. Ich war nur derjenige, der einige Plays beendet hat.","That was team defense. I was just the guy finishing some of the plays."),impact:{expert:6,fans:3}},
+        {id:"better",style:style("Selbstkritisch","Self-critical"),label:style("Die Blocks sehen gut aus, aber bei den Rotationen können wir noch sauberer sein.","The blocks look good, but our rotations can still be cleaner."),impact:{expert:7,hype:-1}},
+        {id:"challenge",style:style("Kampfansage","Challenge"),label:style("Ich hoffe, die nächsten Teams greifen den Ring trotzdem an.","I hope the next teams still attack the rim."),impact:{hype:6,hater:5,culture:3}}
+      ],
+      adversity:[
+        {id:"accountable",style:style("Verantwortung","Accountability"),label:style("Ich muss besser sein. So einfach ist das.","I have to be better. It is that simple."),impact:{expert:6,fans:3,hype:-2}},
+        {id:"next",style:style("Fokus","Focus"),label:style("Das Spiel ist vorbei. Morgen geht es um die Reaktion.","The game is over. Tomorrow is about the response."),impact:{fans:3,expert:3}},
+        {id:"context",style:style("Einordnung","Context"),label:style("Nicht alles war schlecht, aber wir haben die entscheidenden Dinge nicht gut genug gemacht.","Not everything was bad, but we did not execute the important things well enough."),impact:{expert:4}},
+        {id:"edge",style:style("Genervt","Defiant"),label:style("Eine schlechte Nacht ändert nicht, was ich für ein Spieler bin.","One bad night does not change what kind of player I am."),impact:{hype:2,star:2,hater:4}}
+      ],
+      efficiency:[
+        {id:"reads",style:style("Analytisch","Analytical"),label:style("Ich habe genommen, was die Defense mir gegeben hat.","I took what the defense gave me."),impact:{expert:6}},
+        {id:"attack",style:style("Aggressiv","Aggressive"),label:style("Wenn ich solche Looks bekomme, werde ich weiter angreifen.","If I get those looks, I am going to keep attacking."),impact:{hype:3,star:2}},
+        {id:"team",style:"Team-first",label:style("Gute Würfe entstehen aus guter Offense. Das war nicht nur ich.","Good shots come from good offense. That was not just me."),impact:{fans:5,expert:3}},
+        {id:"ceiling",style:style("Selbstbewusst","Confident"),label:style("Ich glaube nicht, dass das schon mein bestes Basketball war.","I do not think that was my best basketball yet."),impact:{hype:5,star:4,hater:4}}
+      ],
+      pressure:[
+        {id:"calm",style:style("Gelassen","Calm"),label:style("Druck gehört dazu. Genau dafür spiele ich.","Pressure is part of it. That is exactly why I play."),impact:{star:4,expert:3}},
+        {id:"team",style:"Team-first",label:style("In engen Spielen vertraue ich meinen Jungs und sie vertrauen mir.","In close games I trust my guys and they trust me."),impact:{fans:6}},
+        {id:"want_ball",style:style("Clutch","Clutch"),label:style("In solchen Momenten will ich den Ball.","In those moments, I want the ball."),impact:{hype:6,star:5,hater:4}},
+        {id:"learn",style:style("Lernend","Learning"),label:style("Genau solche Possessions helfen mir am meisten, besser zu werden.","Those are the possessions that help me improve the most."),impact:{expert:5}}
+      ],
+      criticism:[
+        {id:"own",style:style("Verantwortung","Accountability"),label:style("Die Turnover gehen auf mich. Ich muss die Reads früher sehen.","The turnovers are on me. I have to see the reads earlier."),impact:{expert:7,hater:-2}},
+        {id:"aggressive",style:style("Aggressiv","Aggressive"),label:style("Ich werde nicht aufhören, Druck auf die Defense auszuüben.","I am not going to stop putting pressure on the defense."),impact:{hype:4,hater:4}},
+        {id:"film",style:style("Film Room","Film Room"),label:style("Ich werde mir jeden einzelnen davon auf Tape ansehen.","I am going to watch every single one of them on film."),impact:{expert:6}},
+        {id:"dismiss",style:style("Abweisend","Dismissive"),label:style("Wenn das heute das größte Problem war, kann ich damit leben.","If that was the biggest problem tonight, I can live with it."),impact:{hype:3,hater:7,expert:-2}}
+      ],
+      discipline:[
+        {id:"accountable",style:style("Verantwortung","Accountability"),label:style("Ich darf mich da nicht provozieren lassen. Das geht auf mich.","I cannot let myself get baited into that. That is on me."),impact:{expert:6,hater:-2}},
+        {id:"emotion",style:style("Emotional","Emotional"),label:style("Ich spiele mit Emotionen. Manchmal geht man dabei über die Linie.","I play with emotion. Sometimes you cross the line."),impact:{hype:3,culture:3,hater:3}},
+        {id:"no_regret",style:style("Keine Reue","No regret"),label:style("Ich würde die Intensität nicht ändern. Nur die Reaktion muss smarter sein.","I would not change the intensity. I just have to react smarter."),impact:{star:3,expert:3}},
+        {id:"silent",style:style("Kurz angebunden","No comment"),label:style("Dazu sage ich nichts.","I have nothing to say about that."),impact:{hype:2,hater:4}}
+      ],
+      rivalry:[
+        {id:"respect",style:style("Respekt","Respect"),label:style("Gegen die macht es Spaß. Das sind genau die Spiele, die man will.","They are fun to play against. Those are exactly the games you want."),impact:{fans:4,expert:3}},
+        {id:"fuel",style:style("Feuer","Fuel"),label:style("Wenn da eine Rivalry entsteht, bin ich damit völlig fein.","If a rivalry is forming, I am completely fine with that."),impact:{hype:5,culture:4,hater:3}},
+        {id:"deny",style:style("Abkühlen","Downplay"),label:style("Für mich ist das einfach das nächste Spiel auf dem Plan.","To me it is just the next game on the schedule."),impact:{hype:-3,expert:2}},
+        {id:"spicy",style:style("Provokant","Spicy"),label:style("Sie wissen inzwischen, was sie erwartet, wenn sie gegen uns spielen.","They know by now what is waiting for them when they play us."),impact:{hype:6,hater:7,culture:4}}
+      ],
+      trade:[
+        {id:"stay",style:style("Loyal","Loyal"),label:style("Ich bin hier. Mein Fokus liegt komplett auf diesem Team.","I am here. My focus is completely on this team."),impact:{fans:7,hype:-2}},
+        {id:"business",style:style("Sachlich","Businesslike"),label:style("Das ist ein Business. Ich kontrolliere nur, wie ich spiele.","It is a business. I only control how I play."),impact:{expert:4,hype:2}},
+        {id:"open",style:style("Offen","Open"),label:style("Ich höre mir alles an, aber heute geht es um Basketball.","I listen to everything, but tonight is about basketball."),impact:{hype:5,hater:3}},
+        {id:"no_comment",style:style("Kein Kommentar","No comment"),label:style("Über Gerüchte spreche ich nicht.","I do not talk about rumors."),impact:{hype:2}}
+      ],
+      generic:[
+        {id:"team",style:"Team-first",label:style("Am wichtigsten ist der Sieg. Alles andere kommt danach.","The win matters most. Everything else comes after that."),impact:{fans:5,expert:2}},
+        {id:"film",style:style("Analytisch","Analytical"),label:style("Es gab gute Dinge und Dinge, die wir morgen auf Film korrigieren.","There were good things and things we will correct on film tomorrow."),impact:{expert:5}},
+        {id:"confident",style:style("Selbstbewusst","Confident"),label:style("Ich habe mich gut gefühlt und will darauf aufbauen.","I felt good and I want to build on it."),impact:{hype:3,star:2}},
+        {id:"next",style:style("Fokus","Focus"),label:style("Ein Spiel. Jetzt kommt das nächste.","One game. Now it is on to the next one."),impact:{fans:2}}
+      ]
+    };
+    return common[topic]||common.generic;
+  };
+
+  const reporters:any={
+    big:[
+      ["Mara Cole","National Hoops Network"],
+      ["Jon Mercer","The Hardwood Wire"],
+      ["Renee Ward","Postgame Desk"]
+    ],
+    technical:[
+      ["Tess Morgan","Film Room Weekly"],
+      ["Eli Carter","The Breakdown"],
+      ["Nia Brooks","Court Vision"]
+    ],
+    skeptical:[
+      ["Darren Cole","Prime Time Debate"],
+      ["Marcus Reed","League Central"],
+      ["Jade Foster","Full Court Tonight"]
+    ],
+    local:[
+      ["Avery Lin","Bay Beat"],
+      ["Cam Jordan","Locker Room Wire"],
+      ["Sophie Grant","Warriors Daily"]
+    ],
+    rumor:[
+      ["R. Fields","Trade Signal"],
+      ["Lena Park","League Sources"],
+      ["Miles Grant","Front Office Watch"]
+    ]
+  };
+  const reporter=(pool:string,seed:string)=>{
+    const arr=reporters[pool]||reporters.big;
+    return arr[stableHash(seed)%arr.length];
+  };
+
+  const candidates:any[]=[];
+  const add=(topic:string,importance:number,pool:string,tone:string,questionDe:string,questionEn:string,contextDe:string,contextEn:string)=>{
+    const [reporter_name,outlet]=reporter(pool,game.id+topic);
+    candidates.push({
+      topic,importance,reporter_name,outlet,tone,
+      question:style(questionDe,questionEn),context:style(contextDe,contextEn),
+      options:opts(topic)
+    });
+  };
+
+  if(Number(stat.points)>=45)add("hype",98,"big","spotlight",
+    `${stat.points} Punkte – ist das inzwischen der Standard, den du selbst von dir erwartest?`,
+    `${stat.points} points — is this becoming the standard you expect from yourself?`,
+    `${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST`,
+    `${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST`);
+
+  if(Number(stat.blocks)>=7||Number(stat.steals)>=5)add("defense",96,"technical","technical",
+    `${stat.blocks} Blocks und ${stat.steals} Steals: Wie viel davon ist Instinkt und wie viel Vorbereitung?`,
+    `${stat.blocks} blocks and ${stat.steals} steals: how much is instinct and how much is preparation?`,
+    "Defensiver Einfluss war einer der größten Faktoren des Spiels.",
+    "Defensive impact was one of the defining factors of the game.");
+
+  if(tripleCats>=3)add("hype",94,"big","historic",
+    "Du hast in mindestens drei Kategorien zweistellig aufgelegt. Was sagt dir so eine Allround-Leistung über dein Spiel?",
+    "You reached double figures in at least three categories. What does an all-around night like that tell you about your game?",
+    "Triple-Double-Level an Gesamtproduktion.",
+    "Triple-double-level all-around production.");
+
+  if(result==="loss")add("adversity",93,"local","accountability",
+    `Was ärgert dich nach der Niederlage gegen ${teamName} am meisten?`,
+    `What bothers you most after the loss to ${teamName}?`,
+    `Endstand ${myScore}:${oppScore} aus deiner Sicht.`,
+    `Final score ${myScore}-${oppScore} from your side.`);
+
+  if(margin<=5)add("pressure",92,"big","clutch",
+    `Das Spiel war bis zum Ende eng. Was verändert sich für dich mental in den letzten zwei Minuten?`,
+    `The game stayed tight until the end. What changes mentally for you in the final two minutes?`,
+    `Entscheidung mit nur ${margin} Punkt(en) Unterschied.`,
+    `Decided by only ${margin} point(s).`);
+
+  if(Number(stat.turnovers)>=5)add("criticism",90,"skeptical","critical",
+    `${stat.turnovers} Turnover heute: Wo waren die Reads zu spät oder zu riskant?`,
+    `${stat.turnovers} turnovers tonight: where were the reads late or too risky?`,
+    "Die Produktion war hoch, aber auch die Fehlerzahl fiel auf.",
+    "The production was high, but so was the mistake count.");
+
+  if(Number(stat.technical_fouls)>0||Number(stat.flagrant_fouls)>0||stat.ejected)add("discipline",95,"skeptical","controversy",
+    "Wie erklärst du die Szene, die zur technischen beziehungsweise Flagrant-Strafe geführt hat?",
+    "How do you explain the sequence that led to the technical or flagrant foul?",
+    `${stat.technical_fouls||0} Tech · ${stat.flagrant_fouls||0} Flagrant${stat.ejected?" · Ejection":""}`,
+    `${stat.technical_fouls||0} tech · ${stat.flagrant_fouls||0} flagrant${stat.ejected?" · ejection":""}`);
+
+  if(Number(stat.fga)>=12&&fg>=.60)add("efficiency",89,"technical","technical",
+    `${Math.round(fg*100)} Prozent aus dem Feld – hast du heute besonders früh erkannt, was die Defense dir geben würde?`,
+    `${Math.round(fg*100)} percent from the field — did you recognize early what the defense was going to give you?`,
+    `${stat.fgm}/${stat.fga} aus dem Feld.`,
+    `${stat.fgm}/${stat.fga} from the field.`);
+
+  if(Number(stat.fga)>=24&&fg<.45)add("criticism",88,"skeptical","skeptical",
+    `${stat.fga} Würfe bei ${Math.round(fg*100)} Prozent: Warst du heute zu sehr im Forcieren-Modus?`,
+    `${stat.fga} shots at ${Math.round(fg*100)} percent: were you forcing the issue too much tonight?`,
+    "Hohe Usage bei schwieriger Effizienz.",
+    "High usage on difficult efficiency.");
+
+  if(prev.length&&Number(stat.points)>prevMax("points"))add("hype",91,"big","record",
+    `Neuer Career High mit ${stat.points} Punkten – bedeutet dir so ein persönlicher Rekord schon etwas?`,
+    `New career high with ${stat.points} points — does a personal record like that mean much to you already?`,
+    "Neuer persönlicher Bestwert.",
+    "New personal best.");
+
+  if(Number(rivalry?.heat||0)>=55)add("rivalry",90,"local","rivalry",
+    `Die Spiele gegen ${teamName} werden spürbar giftiger. Nennst du das inzwischen eine Rivalry?`,
+    `The games against ${teamName} are getting noticeably more heated. Do you call this a rivalry now?`,
+    `Rivalry Heat ${rivalry?.heat||0}/100.`,
+    `Rivalry heat ${rivalry?.heat||0}/100.`);
+
+  if(tradeSaga&&Number(tradeSaga.heat||0)>=55)add("trade",87,"rumor","rumor",
+    `Die Gerüchte um ${tradeSaga.team?.city||"einen möglichen Trade"} werden lauter. Belastet dich das inzwischen?`,
+    `The rumors around ${tradeSaga.team?.city||"a possible trade"} are getting louder. Is it becoming a distraction?`,
+    `Trade-Saga Heat ${tradeSaga.heat||0}/100.`,
+    `Trade saga heat ${tradeSaga.heat||0}/100.`);
+
+  if(gameNo<=5)add("hype",84,"big","rookie",
+    `Du bist erst bei NBA-Spiel Nummer ${gameNo}. Wie schnell fühlt sich das alles für dich gerade an?`,
+    `This is only NBA game number ${gameNo}. How fast does all of this feel right now?`,
+    "Frühe Phase der Rookie-Saison.",
+    "Early stage of the rookie season.");
+
+  if(margin>=20&&result==="win")add("generic",81,"local","team",
+    `Ein deutlicher Sieg gegen ${teamName}: Was hat euch heute so früh Kontrolle über das Spiel gegeben?`,
+    `A comfortable win over ${teamName}: what allowed you to take control so early?`,
+    `Sieg mit ${margin} Punkten Unterschied.`,
+    `Won by ${margin} points.`);
+
+  if(Number(stat.minutes)<=25&&Number(stat.points)>=25)add("efficiency",86,"technical","minutes",
+    `${stat.points} Punkte in nur ${stat.minutes} Minuten – fällt es dir schwer, bei so einem Rhythmus vom Feld zu gehen?`,
+    `${stat.points} points in only ${stat.minutes} minutes — is it hard to leave the floor when you are in that kind of rhythm?`,
+    "Außergewöhnliche Produktion in begrenzten Minuten.",
+    "Exceptional production in limited minutes.");
+
+  if(Number(rep?.hater_heat||0)>=70)add("hype",83,"skeptical","media",
+    "Je größer deine Zahlen werden, desto lauter wird auch die Kritik. Hörst du diese Stimmen überhaupt?",
+    "The bigger your numbers get, the louder the criticism becomes too. Do you hear those voices at all?",
+    `Hater Heat ${rep?.hater_heat||0}/100.`,
+    `Hater heat ${rep?.hater_heat||0}/100.`);
+
+  if(!candidates.length)add("generic",70,"local","balanced",
+    "Was nimmst du aus der heutigen Leistung mit – und was willst du im nächsten Spiel anders machen?",
+    "What do you take from tonight's performance, and what do you want to do differently next game?",
+    `${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST · ${result}`,
+    `${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST · ${result}`);
+
+  const fresh=candidates.filter(x=>!recentTopics.has(x.topic));
+  const pool=fresh.length?fresh:candidates;
+  pool.sort((a,b)=>b.importance-a.importance||(stableHash(game.id+a.topic)-stableHash(game.id+b.topic)));
+
+  const eventful=pool.filter(x=>x.importance>=90).length>=2;
+  const selected=[pool[0]];
+  if(eventful){
+    const second=pool.find(x=>x.topic!==pool[0].topic&&x.reporter_name!==pool[0].reporter_name);
+    if(second)selected.push(second);
+  }
+
+  const rows=selected.map((x:any)=>({
+    career_id:career.id,game_id:game.id,interview_date:game.game_day,
+    question:x.question,options:x.options,language:lang,status:"open",
+    reporter_name:x.reporter_name,outlet:x.outlet,topic:x.topic,tone:x.tone,
+    context:x.context,importance:x.importance
+  }));
+  const {error}=await client.from("interviews").insert(rows);
+  if(error)throw error;
 }
 
 export async function ensurePregameCoverage(career:any,universe:any,game:any,lang:Lang){
@@ -450,7 +689,7 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
     updateStoryArcs(career,game,stat,grade,lang),
     updateRecords(career.id,game.season_id,game,stat,lang),
     updateGoals(career,game.season_id,lang),
-    createInterview(career,game,stat,lang),
+    createInterview(career,game,stat,grade,result,lang),
     updateOrganicTradeInterest(career,game,lang)
   ]);
   const next=await nextGame(career,universe,game.game_day);
@@ -495,6 +734,8 @@ export async function answerInterview(careerId:string,interviewId:string,optionI
     fan_approval:clamp(Number(r.fan_approval||50)+Number(impact.fans||0)),
     expert_respect:clamp(Number(r.expert_respect||50)+Number(impact.expert||0)),
     hater_heat:clamp(Number(r.hater_heat||35)+Number(impact.hater||0)),
+    star_power:clamp(Number(r.star_power||50)+Number(impact.star||0)),
+    cultural_impact:clamp(Number(r.cultural_impact||35)+Number(impact.culture||0)),
     updated_at:new Date().toISOString()
   }).eq("career_id",careerId);
   await client.from("interviews").update({answered_option:optionId,answer_text:option.label,impact,status:"answered"}).eq("id",interviewId);
