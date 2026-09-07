@@ -404,3 +404,10 @@ export async function ensureTradeSaga(career:any,offers:any[],lang:Lang){
   }
   return saga;
 }
+
+
+export async function initializeSeasonGoals(career:any,seasonId:string,language?:Lang){
+  const lang=language||await getLang(career.id);
+  await ensureGoals(career,seasonId,lang);
+  return true;
+}
