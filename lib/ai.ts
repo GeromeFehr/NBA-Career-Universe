@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { performanceScore, headlineFacts } from "@/lib/stats";
+import { logAiUsage } from "@/lib/ai-usage";
 
 const model = () => process.env.OPENAI_MODEL || "gpt-5.6-luna";
 const hasAi = () => Boolean(process.env.OPENAI_API_KEY);
@@ -44,7 +45,7 @@ function fallbackCoverage(ctx:any) {
 export async function buildGameContext(statId:string) {
   const client=db();
   const {data:stat,error}=await client.from("player_game_stats")
-    .select("*,career_profiles(*,universes(language)),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
+    .select("*,career_profiles(*,universes(language,current_season_id)),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
     .eq("id",statId).single();
   if (error || !stat) throw new Error("Stat line not found");
   const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame},{data:personas},{data:rivalries},{data:rep}] = await Promise.all([
@@ -91,7 +92,7 @@ Use recurring fictional voices so the universe develops recognizable personaliti
 - @NoEasyBuckets: persistent critic/hater, looks for flaws, usage, turnovers and weak competition
 - @ReceiptCollector: trolling receipt-account that saves bold claims and waits for failure
 - @BenchMobRadio: contrarian social voice, questions narratives and overreactions
-Do not force every persona into every game, but use several of them consistently across the season.
+Do not force every persona into every game, but use several of them consistently across the season.\nKeep the pack concise to reduce API output: social/fan/hater/meme posts max 2 short sentences; expert/media pieces max about 80 words.
 The writing must not feel templated. Change sentence rhythm, angle, intensity and what stat you focus on. Some items may focus on fouls, efficiency, blocks, injury, matchup, pressure, minutes, turnovers, team result or historical context.
 Do not repeat recent headlines or phrasings. Do not claim real-world news happened; this is a fictional MyNBA universe.
 If the player is a 99 OVR rookie, coverage may treat that as extraordinary, but criticism can still be credible.
@@ -126,6 +127,15 @@ ${crypto.randomUUID()}`;
         }
       }}
     });
+    await logAiUsage({
+      careerId:ctx.stat.career_id,
+      universeId:ctx.career?.universe_id,
+      gameId:ctx.stat.game_id,
+      feature:"game_media",
+      model:model(),
+      usage:response.usage as any,
+      meta:{seasonId:ctx.game?.season_id,itemCount:12}
+    });
     items=JSON.parse(response.output_text).items;
   } else {
     items=fallbackCoverage(ctx);
@@ -151,7 +161,7 @@ ${crypto.randomUUID()}`;
 
 export async function generateWorldPulse(careerId:string) {
   const client=db();
-  const {data:career}=await client.from("career_profiles").select("*,current_team:teams(*),universes(language)").eq("id",careerId).single();
+  const {data:career}=await client.from("career_profiles").select("*,current_team:teams(*),universes(language,current_season_id)").eq("id",careerId).single();
   if (!career) throw new Error("Career not found");
   const [{data:stats},{data:offers},{data:arcs},{data:nextGames},{data:recent}] = await Promise.all([
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(10),
@@ -178,6 +188,14 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
         }}}
       }}}
     });
+    await logAiUsage({
+      careerId,
+      universeId:career.universe_id,
+      feature:"world_pulse",
+      model:model(),
+      usage:r.usage as any,
+      meta:{seasonId:career?.universes?.current_season_id,itemCount:4}
+    });
     items=JSON.parse(r.output_text).items;
   } else {
     const en=career?.universes?.language==="en";
@@ -201,7 +219,7 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
 export async function generateTradeMarket(careerId:string) {
   const client=db();
   const {data:career}:any = await client.from("career_profiles")
-    .select("*,current_team:teams(*),universes(language)")
+    .select("*,current_team:teams(*),universes(language,current_season_id)")
     .eq("id",careerId).single();
   if(!career) throw new Error("Career not found");
   const language=career?.universes?.language==="en"?"en":"de";
@@ -233,6 +251,14 @@ RECENT_INTEREST=${JSON.stringify(recent)}`;
           properties:{team_id:{type:"string"},interest_score:{type:"integer"},fairness_score:{type:"integer"},rationale:{type:"string"},package_summary:{type:"string"},pressure:{type:"string",enum:["low","medium","high"]}}
         }}}
       }}}
+    });
+    await logAiUsage({
+      careerId,
+      universeId:career.universe_id,
+      feature:"trade_market",
+      model:model(),
+      usage:r.usage as any,
+      meta:{seasonId:career?.universes?.current_season_id,offerCount:5}
     });
     picks=JSON.parse(r.output_text).offers;
   } else {
