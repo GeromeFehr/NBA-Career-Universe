@@ -6,6 +6,10 @@ import { logAiUsage } from "@/lib/ai-usage";
 const model = () => process.env.OPENAI_MODEL || "gpt-5.6-luna";
 const hasAi = () => Boolean(process.env.OPENAI_API_KEY);
 
+function safeJsonObject(text:string){
+  try{return JSON.parse(text)}catch{return null}
+}
+
 function fallbackCoverage(ctx:any) {
   const s=ctx.stat, p=ctx.career?.player_name || "Rookie", score=performanceScore(s), facts=headlineFacts(s);
   const lang=ctx.career?.universes?.language==="en"?"en":"de";
@@ -72,7 +76,9 @@ export async function buildGameContext(statId:string) {
 export async function generateGameMedia(statId:string) {
   const ctx=await buildGameContext(statId);
   let items:any[] = [];
+  let generationSource="fallback";
   if (hasAi()) {
+    try{
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
     const prompt=`You are the editorial engine for a PRIVATE fictional NBA MyNBA career universe.
 Write exclusively in ${ctx.career?.universes?.language==="en"?"English":"German"}. Treat supplied game/career data as canon. Never invent exact stats for another player unless present in NOTABLES.
@@ -111,7 +117,7 @@ ${crypto.randomUUID()}`;
       model:model(),
       input:prompt,
       store:false,
-      max_output_tokens:2400,
+      max_output_tokens:3200,
       text:{format:{
         type:"json_schema",name:"game_media_pack",strict:true,
         schema:{
@@ -137,7 +143,21 @@ ${crypto.randomUUID()}`;
       usage:response.usage as any,
       meta:{seasonId:ctx.game?.season_id,itemCount:12}
     });
-    items=JSON.parse(response.output_text).items;
+    const parsed=safeJsonObject(response.output_text);
+    if(parsed?.items?.length===12){
+      items=parsed.items;
+      generationSource="openai";
+    }else{
+      console.warn("Game media output incomplete; using local fallback",{
+        status:(response as any).status,
+        outputLength:response.output_text?.length||0
+      });
+      items=fallbackCoverage(ctx);
+    }
+    }catch(err){
+      console.warn("Game media generation failed; using local fallback",err);
+      items=fallbackCoverage(ctx);
+    }
   } else {
     items=fallbackCoverage(ctx);
   }
@@ -153,7 +173,7 @@ ${crypto.randomUUID()}`;
     career_id:ctx.stat.career_id, game_id:ctx.stat.game_id, player_stat_id:ctx.stat.id,
     outlet:x.outlet, kind:x.kind, author_name:x.author_name, tone:x.tone,
     headline:x.headline, body:x.body, virality:Number(x.virality||50),
-    generation_source:hasAi() ? "openai" : "fallback", language
+    generation_source:generationSource, language
   }));
   const {data,error}=await client.from("media_posts").insert(rows).select();
   if (error) throw error;
