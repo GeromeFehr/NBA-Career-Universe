@@ -5,6 +5,7 @@ import {langOf,t} from "@/lib/i18n";
 import StatCard from "@/components/StatCard";
 import MediaCard from "@/components/MediaCard";
 import TeamBadge from "@/components/TeamBadge";
+import AiUsageMeter from "@/components/AiUsageMeter";
 
 export const dynamic="force-dynamic";
 
@@ -79,6 +80,8 @@ export default async function Home(){
         </Link>:<div className="card muted">{t(lang,"noNext")}</div>}
 
         {rivalry&&<><div className="sectionHead"><h2>Rivalry Watch</h2></div><Link href="/world" className="card"><div className="inline"><TeamBadge team={rivalry.team} small/><b>{rivalry.team?.abbreviation} · Heat {rivalry.heat}/100</b></div><p className="muted">{rivalry.reason}</p></Link></>}
+
+        <div className="sectionHead"><h2>{lang==="en"?"AI Budget":"KI-Budget"}</h2></div><AiUsageMeter language={lang} compact/>
 
         <div className="sectionHead"><h2>{t(lang,"activeStories")}</h2></div>
         {(arcs||[]).length?(arcs||[]).map((a:any)=><div className="card" key={a.id}><span className="eyebrow">{a.category} · {a.intensity}/100</span><h3>{a.title}</h3><p className="muted">{a.summary}</p></div>):<div className="card muted">{lang==="en"?"No long-running storyline yet.":"Noch keine langfristige Storyline."}</div>}
