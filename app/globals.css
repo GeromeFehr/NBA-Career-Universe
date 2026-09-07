@@ -29,3 +29,12 @@ input,select,textarea,button{font:inherit;color:white;background:#0a0f18;border:
 .gameHero{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;text-align:center}.gameTeam{display:flex;align-items:center;justify-content:center;gap:14px}.gameScore{font-size:56px;font-weight:950}.gameMeta{text-align:center;color:#8795ad}.boxline{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px}.boxline div{background:#0a1019;border:1px solid #202b40;border-radius:12px;padding:12px;text-align:center}.boxline strong{display:block;font-size:24px}.boxline span{font-size:10px;color:#8290a8}
 @media(max-width:900px){.dashboardGrid{grid-template-columns:1fr}.scheduleRow{grid-template-columns:100px 1fr 90px}.scheduleRow>div:last-child{display:none}.filterbar{grid-template-columns:1fr 1fr}.navlinks{gap:13px}.hero{padding:28px}.matchup strong{display:none}.matchup{grid-template-columns:42px 25px 42px}.grid2,.grid3{grid-template-columns:1fr}}
 @media(max-width:580px){.topbar{align-items:flex-start;flex-direction:column}.shell{padding:22px 13px 60px}.hero h1{font-size:48px}.filterbar{grid-template-columns:1fr}.scheduleRow{grid-template-columns:86px 1fr 70px;padding:11px}.gameHero{grid-template-columns:1fr}.gameScore{font-size:42px}}
+
+.nextGameLink{transition:transform .16s ease,border-color .16s ease,background .16s ease;cursor:pointer}
+.nextGameLink:hover{transform:translateY(-2px);border-color:#52627f;background:linear-gradient(180deg,#141d2b,#101722)}
+.nextGameAction,.scheduleAction{display:inline-block;margin-top:9px;color:#ff9f78;font-weight:800;font-size:12px}
+.scheduleAction{margin-top:0}
+.gameEntryCta{margin:18px auto 0;display:flex;max-width:320px}
+.quickEntry{scroll-margin-top:90px}
+.inlineNotice{position:static;margin:12px 0 16px}
+.gameOverview{overflow:hidden}
