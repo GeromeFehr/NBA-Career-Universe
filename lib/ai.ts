@@ -111,6 +111,7 @@ ${crypto.randomUUID()}`;
       model:model(),
       input:prompt,
       store:false,
+      max_output_tokens:2400,
       text:{format:{
         type:"json_schema",name:"game_media_pack",strict:true,
         schema:{
@@ -180,7 +181,7 @@ Use only supplied canon. You may discuss upcoming matchup pressure, trade chatte
 Do not invent exact stats for unprovided players. Return JSON only.
 ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
     const r=await ai.responses.create({
-      model:model(),input:prompt,store:false,
+      model:model(),input:prompt,store:false,max_output_tokens:900,
       text:{format:{type:"json_schema",name:"world_pulse",strict:true,schema:{
         type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:4,maxItems:4,items:{
           type:"object",additionalProperties:false,required:["outlet","kind","author_name","tone","headline","body","virality"],
@@ -243,7 +244,7 @@ RECENT_STATS=${JSON.stringify(stats)}
 TEAMS=${JSON.stringify(eligible.map((t:any)=>({id:t.id,abbreviation:t.abbreviation,city:t.city,name:t.name,conference:t.conference})))}
 RECENT_INTEREST=${JSON.stringify(recent)}`;
     const r=await ai.responses.create({
-      model:model(),input:prompt,store:false,
+      model:model(),input:prompt,store:false,max_output_tokens:1100,
       text:{format:{type:"json_schema",name:"trade_market",strict:true,schema:{
         type:"object",additionalProperties:false,required:["offers"],properties:{offers:{type:"array",minItems:5,maxItems:5,items:{
           type:"object",additionalProperties:false,
