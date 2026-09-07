@@ -1,2 +1,22 @@
-import {NextResponse} from "next/server";import {requireUser,apiStatus} from "@/lib/auth";import {syncSchedule} from "@/lib/schedule";
-export async function POST(){try{await requireUser();const r=await syncSchedule();return NextResponse.json({ok:true,message:`${r.imported} Spiele importiert · Quelle ${r.source}`,result:r})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)})}}
+import {NextResponse} from "next/server";
+import {requireUser,apiStatus} from "@/lib/auth";
+import {syncSchedule} from "@/lib/schedule";
+
+export const maxDuration = 26;
+
+export async function POST(){
+  try{
+    await requireUser();
+    const r=await syncSchedule();
+    return NextResponse.json({
+      ok:true,
+      message:`${r.imported} Spiele importiert · Quelle ${r.source}`,
+      result:r
+    });
+  }catch(e){
+    return NextResponse.json(
+      {error:e instanceof Error?e.message:String(e)},
+      {status:apiStatus(e)}
+    );
+  }
+}
