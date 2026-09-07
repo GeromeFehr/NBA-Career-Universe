@@ -9,7 +9,7 @@ const s=b.stats||{};const statPayload:any={
  fouls:Number(s.fouls||0),technical_fouls:Number(s.technical_fouls||0),flagrant_fouls:Number(s.flagrant_fouls||0),fgm:Number(s.fgm||0),fga:Number(s.fga||0),tpm:Number(s.tpm||0),tpa:Number(s.tpa||0),ftm:Number(s.ftm||0),fta:Number(s.fta||0),plus_minus:Number(s.plus_minus||0),
  started:Boolean(b.started),fouled_out:Boolean(b.fouledOut)||Number(s.fouls||0)>=6,ejected:Boolean(b.ejected),injured:Boolean(b.injured),injury_note:b.injuryNote||null,story_notes:b.storyNotes||null
 };
-const {data:stat,error}=await client.from("player_game_stats").upsert(statPayload,{onConflict:"career_id,game_id"}).select("*").single();if(error)throw error;
+const {data:stat,error}=await client.from("player_game_stats").upsert(statPayload,{onConflict:"career_id,game_id"}).select("*").single();if(error||!stat)throw error||new Error("Stat line could not be saved");
 await client.from("game_notables").delete().eq("game_id",game.id);
 const lines=String(b.notableText||"").split(/\r?\n/).map((x:string)=>x.trim()).filter(Boolean);if(lines.length){const rows=lines.map((line:string)=>{const [player_name="",team_abbreviation="",...rest]=line.split("|").map(x=>x.trim());return {game_id:game.id,player_name,team_abbreviation,note:rest.join(" | ")||"Notable performance"}});await client.from("game_notables").insert(rows)}
 if(statPayload.injured&&statPayload.injury_note){await client.from("injuries").insert({career_id:career.id,start_date:game.game_day,injury:statPayload.injury_note,severity:"unknown",status:"active",source_game_id:game.id})}
