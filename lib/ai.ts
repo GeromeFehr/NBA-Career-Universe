@@ -204,7 +204,7 @@ export async function generateTradeMarket(careerId:string) {
     client.from("career_profiles").select("*,current_team:teams(*),universes(language)").eq("id",careerId).single(),
     client.from("teams").select("*").eq("active",true),
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(12),
-    client.from("trade_interest").select("*,teams(*)").eq("career_id",careerId).order("created_at",{ascending:false}).limit(20)
+    client.from("trade_interest").select("*,teams(*)").eq("career_id",careerId).eq("language",career?.universes?.language==="en"?"en":"de").order("created_at",{ascending:false}).limit(20)
   ]);
   if(!career) throw new Error("Career not found");
   const eligible=(teams||[]).filter((t:any)=>t.id!==career.current_team_id);
@@ -247,15 +247,17 @@ RECENT_INTEREST=${JSON.stringify(recent)}`;
     }));
   }
 
+  const language=career?.universes?.language==="en"?"en":"de";
+  await client.from("trade_offers").update({status:"withdrawn"}).eq("career_id",careerId).eq("language",language).eq("status","pending");
   const inserted:any[]=[];
   for(const p of picks) {
     await client.from("trade_interest").upsert({
-      career_id:careerId,team_id:p.team_id,interest_score:p.interest_score,rationale:p.rationale,status:"active"
-    },{onConflict:"career_id,team_id"});
+      career_id:careerId,team_id:p.team_id,interest_score:p.interest_score,rationale:p.rationale,status:"active",language
+    },{onConflict:"career_id,team_id,language"});
     const {data,error}=await client.from("trade_offers").insert({
       career_id:careerId,from_team_id:career.current_team_id,to_team_id:p.team_id,
       interest_score:p.interest_score,fairness_score:p.fairness_score,package_summary:p.package_summary,
-      rationale:p.rationale,pressure:p.pressure,status:"pending",generated_by:hasAi()?"openai":"fallback"
+      rationale:p.rationale,pressure:p.pressure,status:"pending",generated_by:hasAi()?"openai":"fallback",language
     }).select("*,to_team:teams!trade_offers_to_team_id_fkey(*)").single();
     if(error) throw error;
     inserted.push(data);
