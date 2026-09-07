@@ -11,7 +11,7 @@ export async function POST(req:Request){
 
     const {error}=await client.from("award_snapshots").insert({
       career_id:career.id,season_id:seasonId,award:b.award,rank:b.rank,score:b.score||null,
-      as_of_date:b.asOfDate,note:b.note||null
+      as_of_date:b.asOfDate,note:b.note||null,language:lang
     });
     if(error)throw error;
 
