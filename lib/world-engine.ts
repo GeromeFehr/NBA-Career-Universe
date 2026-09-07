@@ -39,8 +39,8 @@ export async function calculateTrends(careerId:string,language?:Lang){
     points:metric("points"),rebounds:metric("rebounds"),assists:metric("assists"),
     steals:metric("steals"),blocks:metric("blocks"),turnovers:metric("turnovers"),
     fg:{
-      last5:last5.reduce((m,r)=>m+Number(r.fgm||0),0)/Math.max(1,last5.reduce((m,r)=>m+Number(r.fga||0),0)),
-      last10:last10.reduce((m,r)=>m+Number(r.fgm||0),0)/Math.max(1,last10.reduce((m,r)=>m+Number(r.fga||0),0))
+      last5:last5.reduce((m:number,r:any)=>m+Number(r.fgm||0),0)/Math.max(1,last5.reduce((m:number,r:any)=>m+Number(r.fga||0),0)),
+      last10:last10.reduce((m:number,r:any)=>m+Number(r.fgm||0),0)/Math.max(1,last10.reduce((m:number,r:any)=>m+Number(r.fga||0),0))
     }
   };
 }
