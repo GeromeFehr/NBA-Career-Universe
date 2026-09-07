@@ -6,6 +6,12 @@ const pct=(m:number,a:number)=>a>0?m/a:0;
 const isPlayoff=(stage:any)=>/playoff|play-in|conference|final/i.test(String(stage||""));
 const letter=(n:number)=>n>=97?"A+":n>=93?"A":n>=90?"A-":n>=87?"B+":n>=83?"B":n>=80?"B-":n>=77?"C+":n>=73?"C":n>=70?"C-":n>=67?"D+":n>=63?"D":n>=60?"D-":"F";
 
+function stableHash(value:string){
+  let h=2166136261;
+  for(let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619)}
+  return h>>>0;
+}
+
 export const PERSONAS=[
   {key:"mara",name:"Mara Cole",role:"National Hoops Network",base:"balanced"},
   {key:"tess",name:"Tess Morgan",role:"Film Room Weekly",base:"technical"},
@@ -179,6 +185,69 @@ async function updateReputation(career:any,stat:any,result:string,grade:any){
   },{onConflict:"career_id,segment,team_id"});
 }
 
+async function updateOrganicTradeInterest(career:any,game:any,lang:Lang){
+  const client=db();
+  const [{data:played},{data:rep},{data:teams},{data:pending}]=await Promise.all([
+    client.from("player_game_stats").select("id").eq("career_id",career.id).eq("appearance_status","played"),
+    client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle(),
+    client.from("teams").select("*").eq("active",true),
+    client.from("trade_offers").select("id").eq("career_id",career.id).eq("language",lang).eq("status","pending")
+  ]);
+  const games=(played||[]).length;
+  if(games<2)return {games,interest:[]};
+
+  const eligible=(teams||[]).filter((t:any)=>t.id!==career.current_team_id);
+  const base=clamp(
+    Number(career.overall||75)*.42+
+    Number(rep?.star_power||50)*.28+
+    Number(rep?.media_hype||50)*.20+
+    Math.min(10,games*2.2)
+  );
+  const count=games>=8?5:games>=4?4:3;
+  const picked=[...eligible]
+    .sort((a:any,b:any)=>stableHash(career.id+a.abbreviation)-stableHash(career.id+b.abbreviation))
+    .slice(0,count);
+
+  const interests:any[]=[];
+  for(let i=0;i<picked.length;i++){
+    const team=picked[i];
+    const jitter=(stableHash(game.id+team.abbreviation)%7)-3;
+    const score=clamp(base-i*5+jitter);
+    const rationale=lang==="en"
+      ?`${team.city} is quietly monitoring the situation after ${games} career games. The combination of star power, production and long-term upside is drawing attention.`
+      :`${team.city} beobachtet die Situation nach ${games} Karrierespielen zunehmend. Die Mischung aus Star-Power, Produktion und langfristigem Upside sorgt ligaweit für Interesse.`;
+
+    await client.from("trade_interest").upsert({
+      career_id:career.id,team_id:team.id,interest_score:score,rationale,status:"active",language:lang,updated_at:new Date().toISOString()
+    },{onConflict:"career_id,team_id,language"});
+    interests.push({team_id:team.id,interest_score:score,rationale,team});
+  }
+
+  const top=[...interests].sort((a,b)=>b.interest_score-a.interest_score)[0];
+  if(top&&top.interest_score>=78&&games>=3){
+    await ensureTradeSaga(career,[top],lang);
+  }
+
+  if(top&&games>=5&&top.interest_score>=84&&!(pending||[]).length){
+    const premium=Number(career.overall||0)>=95;
+    const packageSummary=lang==="en"
+      ?(premium
+        ?"Young starter + 4 first-round picks + 2 pick swaps"
+        :"Young starter + multiple first-round picks + pick swap")
+      :(premium
+        ?"Junger Starter + 4 First-Round-Picks + 2 Pick-Swaps"
+        :"Junger Starter + mehrere First-Round-Picks + Pick-Swap");
+    await client.from("trade_offers").insert({
+      career_id:career.id,from_team_id:career.current_team_id,to_team_id:top.team_id,
+      interest_score:top.interest_score,fairness_score:clamp(top.interest_score+4),
+      package_summary:packageSummary,rationale:top.rationale,pressure:"high",
+      status:"pending",generated_by:"organic",language:lang
+    });
+  }
+
+  return {games,interest:interests};
+}
+
 async function updatePersonas(career:any,game:any,stat:any,grade:any,lang:Lang){
   const client=db();
   for(const p of PERSONAS){
@@ -324,14 +393,15 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
     scoring:grade.scoring,playmaking:grade.playmaking,defense:grade.defense,efficiency:grade.efficiency,discipline:grade.discipline,summary
   },{onConflict:"career_id,game_id,language"});
 
+  await updateReputation(career,stat,result,grade);
   await Promise.all([
-    updateReputation(career,stat,result,grade),
     updateRivalry(career,game,stat,result,lang),
     updatePersonas(career,game,stat,grade,lang),
     updateStoryArcs(career,game,stat,grade,lang),
     updateRecords(career.id,game.season_id,game,stat,lang),
     updateGoals(career,game.season_id,lang),
-    createInterview(career,game,stat,lang)
+    createInterview(career,game,stat,lang),
+    updateOrganicTradeInterest(career,game,lang)
   ]);
   const next=await nextGame(career,universe,game.game_day);
   if(next)await ensurePregameCoverage(career,universe,next,lang);
