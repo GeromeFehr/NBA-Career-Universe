@@ -6,7 +6,7 @@ export const dynamic="force-dynamic";
 export default async function Page(){
   const {client,career,universe}=await pageContext();
   const lang=langOf(universe);
-  const {data}=await client.from("media_posts").select("*").eq("career_id",career.id).order("created_at",{ascending:false}).limit(300);
+  const {data}=await client.from("media_posts").select("*").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(300);
   const socialKinds=new Set(["social","fan","hater","meme","wildcard","expert","debate"]);
   const rows=(data||[]).filter((x:any)=>socialKinds.has(String(x.kind)));
   return <>
