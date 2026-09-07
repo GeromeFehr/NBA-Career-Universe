@@ -27,14 +27,16 @@ function abbr(v:any){return String(v||"").trim().toUpperCase().replace(/[^A-Z]/g
 export default function QuickGameEntry({
   game,
   existingStat,
-  existingResult
-}:{game:any;existingStat:any;existingResult:any}){
+  existingResult,
+  language
+}:{game:any;existingStat:any;existingResult:any;language:"de"|"en"}){
   const router=useRouter();
   const formRef=useRef<HTMLFormElement>(null);
   const [busy,setBusy]=useState(false);
   const [scanBusy,setScanBusy]=useState(false);
   const [msg,setMsg]=useState("");
   const editing=Boolean(existingStat||existingResult);
+  const en=language==="en";
 
   function setField(name:string,value:any){
     if(value==null||!formRef.current)return;
@@ -43,9 +45,9 @@ export default function QuickGameEntry({
   }
 
   async function scanScreenshots(files:File[]){
-    if(!files.length){setMsg("Bitte mindestens ein Bild auswählen.");return}
+    if(!files.length){setMsg(en?"Please select at least one image.":"Bitte mindestens ein Bild auswählen.");return}
     const allowed=files.every(f=>["image/jpeg","image/png","image/webp","image/gif"].includes(f.type));
-    if(!allowed){setMsg("Bitte JPG, PNG, WEBP oder GIF verwenden.");return}
+    if(!allowed){setMsg(en?"Please use JPG, PNG, WEBP or GIF.":"Bitte JPG, PNG, WEBP oder GIF verwenden.");return}
 
     setScanBusy(true);setMsg("");
     try{
@@ -75,11 +77,11 @@ export default function QuickGameEntry({
       for(const k of statKeys)setField(k,s.stats?.[k]);
 
       setMsg(
-        `Screenshot erkannt · Confidence ${s.confidence??0}%`+
-        (s.player_found?" · Spieler-Statline übernommen":" · Spieler-Statline bitte prüfen")
+        `${en?"Screenshot recognized":"Screenshot erkannt"} · Confidence ${s.confidence??0}%`+
+        (s.player_found?(en?" · Player stat line imported":" · Spieler-Statline übernommen"):(en?" · Please review player stat line":" · Spieler-Statline bitte prüfen"))
       );
     }catch(err:any){
-      setMsg(`Fehler beim Screenshot-Import: ${err.message}`);
+      setMsg(`${en?"Screenshot import error":"Fehler beim Screenshot-Import"}: ${err.message}`);
     }finally{
       setScanBusy(false);
     }
@@ -114,10 +116,10 @@ export default function QuickGameEntry({
       });
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-      setMsg(editing?"Spiel aktualisiert.":"Spiel gespeichert.");
+      setMsg(editing?(en?"Game updated.":"Spiel aktualisiert."):(en?"Game saved.":"Spiel gespeichert."));
       router.refresh();
     }catch(err:any){
-      setMsg(`Fehler: ${err.message}`);
+      setMsg(`${en?"Error":"Fehler"}: ${err.message}`);
     }finally{
       setBusy(false);
     }
@@ -127,18 +129,18 @@ export default function QuickGameEntry({
     <div className="sectionHead">
       <div>
         <span className="eyebrow">{editing?"GAME EDITOR":"QUICK GAME ENTRY"}</span>
-        <h2>{editing?"Spiel & Stats bearbeiten":"Spiel direkt eintragen"}</h2>
+        <h2>{editing?(en?"Edit game & stats":"Spiel & Stats bearbeiten"):(en?"Enter game directly":"Spiel direkt eintragen")}</h2>
       </div>
       <span className="pill">{game.away?.abbreviation} @ {game.home?.abbreviation}</span>
     </div>
 
     <div className="screenshotInline">
       <div>
-        <b>Screenshot / Handyfoto</b>
-        <p className="muted">Scoreboard oder Boxscore auswählen – erkannte Werte werden direkt in dieses Match übernommen.</p>
+        <b>{en?"Screenshot / phone photo":"Screenshot / Handyfoto"}</b>
+        <p className="muted">{en?"Choose a scoreboard or box-score image – recognized values are filled into this game.":"Scoreboard oder Boxscore auswählen – erkannte Werte werden direkt in dieses Match übernommen."}</p>
       </div>
       <label className="uploadButton">
-        {scanBusy?"Analysiere…":"Screenshot(s) auswählen"}
+        {scanBusy?(en?"Analyzing…":"Analysiere…"):(en?"Choose screenshot(s)":"Screenshot(s) auswählen")}
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
@@ -151,27 +153,27 @@ export default function QuickGameEntry({
     </div>
 
     <p className="muted">
-      Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert.
+      {en?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards.":"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert."}
     </p>
     {msg&&<div className="notice inlineNotice">{msg}</div>}
 
     <form ref={formRef} onSubmit={submit}>
       <div className="grid2">
-        <label>{game.away?.abbreviation} · Auswärts-Score
+        <label>{game.away?.abbreviation} · {en?"Away score":"Auswärts-Score"}
           <input name="awayScore" type="number" min="0" required defaultValue={existingResult?.away_score??""}/>
         </label>
-        <label>{game.home?.abbreviation} · Heim-Score
+        <label>{game.home?.abbreviation} · {en?"Home score":"Heim-Score"}
           <input name="homeScore" type="number" min="0" required defaultValue={existingResult?.home_score??""}/>
         </label>
       </div>
 
-      <label>Einsatzstatus
+      <label>{en?"Appearance status":"Einsatzstatus"}
         <select name="appearanceStatus" defaultValue={existingStat?.appearance_status||"played"}>
-          <option value="played">Gespielt</option>
-          <option value="dnp_injury">DNP – verletzt</option>
-          <option value="dnp_coach">DNP – Coach</option>
-          <option value="suspended">Gesperrt</option>
-          <option value="inactive">Inaktiv</option>
+          <option value="played">{en?"Played":"Gespielt"}</option>
+          <option value="dnp_injury">{en?"DNP – injured":"DNP – verletzt"}</option>
+          <option value="dnp_coach">{en?"DNP – coach decision":"DNP – Coach"}</option>
+          <option value="suspended">{en?"Suspended":"Gesperrt"}</option>
+          <option value="inactive">{en?"Inactive":"Inaktiv"}</option>
         </select>
       </label>
 
@@ -184,17 +186,17 @@ export default function QuickGameEntry({
 
       <div className="checks">
         <label><input type="checkbox" name="started" defaultChecked={Boolean(existingStat?.started)}/> Starter</label>
-        <label><input type="checkbox" name="fouledOut" defaultChecked={Boolean(existingStat?.fouled_out)}/> Ausgefoult</label>
+        <label><input type="checkbox" name="fouledOut" defaultChecked={Boolean(existingStat?.fouled_out)}/>{en?" Fouled out":" Ausgefoult"}</label>
         <label><input type="checkbox" name="ejected" defaultChecked={Boolean(existingStat?.ejected)}/> Ejected</label>
-        <label><input type="checkbox" name="injured" defaultChecked={Boolean(existingStat?.injured)}/> Verletzt</label>
-        <label><input type="checkbox" name="autoMedia" defaultChecked={!editing}/>{editing?"Neue KI-Berichte erzeugen":"KI-Medien automatisch"}</label>
+        <label><input type="checkbox" name="injured" defaultChecked={Boolean(existingStat?.injured)}/>{en?" Injured":" Verletzt"}</label>
+        <label><input type="checkbox" name="autoMedia" defaultChecked={!editing}/>{editing?(en?"Generate new AI coverage":"Neue KI-Berichte erzeugen"):(en?"Generate AI media automatically":"KI-Medien automatisch")}</label>
       </div>
 
-      <label>Verletzung / Status<textarea name="injuryNote" defaultValue={existingStat?.injury_note||""}/></label>
-      <label>Story-Notizen<textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""} placeholder="Clutch, Buzzer Beater, Streit, Poster Dunk, Coach-Reaktion…"/></label>
-      <label>Andere auffällige Spieler / Boxscore-Notizen<textarea name="notables" placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
+      <label>{en?"Injury / status":"Verletzung / Status"}<textarea name="injuryNote" defaultValue={existingStat?.injury_note||""}/></label>
+      <label>{en?"Story notes":"Story-Notizen"}<textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""} placeholder="Clutch, Buzzer Beater, Streit, Poster Dunk, Coach-Reaktion…"/></label>
+      <label>{en?"Other notable players / box-score notes":"Andere auffällige Spieler / Boxscore-Notizen"}<textarea name="notables" placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
 
-      <button disabled={busy}>{busy?"Speichere…":editing?"Änderungen speichern":"Spiel abschließen + Stats speichern"}</button>
+      <button disabled={busy}>{busy?(en?"Saving…":"Speichere…"):editing?(en?"Save changes":"Änderungen speichern"):(en?"Complete game + save stats":"Spiel abschließen + Stats speichern")}</button>
     </form>
   </section>
 }
