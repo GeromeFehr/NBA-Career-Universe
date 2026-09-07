@@ -49,7 +49,7 @@ export async function buildGameContext(statId:string) {
   if (error || !stat) throw new Error("Stat line not found");
   const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame}] = await Promise.all([
     client.from("game_notables").select("*").eq("career_id",stat.career_id).eq("game_id",stat.game_id),
-    client.from("media_posts").select("outlet,kind,headline,body,tone").eq("career_id",stat.career_id).order("created_at",{ascending:false}).limit(18),
+    client.from("media_posts").select("outlet,kind,headline,body,tone").eq("career_id",stat.career_id).eq("language",stat.career_profiles?.universes?.language==="en"?"en":"de").order("created_at",{ascending:false}).limit(18),
     client.from("story_arcs").select("*").eq("career_id",stat.career_id).eq("status","active").limit(8),
     client.from("injuries").select("*").eq("career_id",stat.career_id).order("start_date",{ascending:false}).limit(5),
     client.from("trade_interest").select("*,teams(*)").eq("career_id",stat.career_id).order("interest_score",{ascending:false}).limit(8),
@@ -129,11 +129,17 @@ ${crypto.randomUUID()}`;
   }
 
   const client=db();
+  const language=ctx.career?.universes?.language==="en"?"en":"de";
+  await client.from("media_posts").delete()
+    .eq("career_id",ctx.stat.career_id)
+    .eq("game_id",ctx.stat.game_id)
+    .eq("language",language)
+    .in("generation_source",["openai","fallback"]);
   const rows=items.map((x:any)=>({
     career_id:ctx.stat.career_id, game_id:ctx.stat.game_id, player_stat_id:ctx.stat.id,
     outlet:x.outlet, kind:x.kind, author_name:x.author_name, tone:x.tone,
     headline:x.headline, body:x.body, virality:Number(x.virality||50),
-    generation_source:hasAi() ? "openai" : "fallback"
+    generation_source:hasAi() ? "openai" : "fallback", language
   }));
   const {data,error}=await client.from("media_posts").insert(rows).select();
   if (error) throw error;
@@ -147,9 +153,9 @@ export async function generateWorldPulse(careerId:string) {
   const [{data:stats},{data:offers},{data:arcs},{data:nextGames},{data:recent}] = await Promise.all([
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(10),
     client.from("trade_offers").select("*,from_team:teams!trade_offers_from_team_id_fkey(*),to_team:teams!trade_offers_to_team_id_fkey(*)").eq("career_id",careerId).eq("status","pending").limit(5),
-    client.from("story_arcs").select("*").eq("career_id",careerId).eq("status","active"),
+    client.from("story_arcs").select("*").eq("career_id",careerId).eq("status","active").eq("language",career?.universes?.language==="en"?"en":"de"),
     client.from("games").select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)").gte("game_day",career.universe_date||"1900-01-01").order("game_date").limit(25),
-    client.from("media_posts").select("headline,body").eq("career_id",careerId).order("created_at",{ascending:false}).limit(15)
+    client.from("media_posts").select("headline,body").eq("career_id",careerId).eq("language",career?.universes?.language==="en"?"en":"de").order("created_at",{ascending:false}).limit(15)
   ]);
   const relevant=(nextGames||[]).filter((g:any)=>g.home_team_id===career.current_team_id||g.away_team_id===career.current_team_id).slice(0,3);
 
@@ -184,7 +190,7 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
       {outlet:"Film Room Weekly",kind:"expert",author_name:"Tess Morgan",tone:"technical",headline:"Jetzt beginnt das Counter-Scouting",body:"Nach auffälligen Leistungen werden Gegner Anpassungen testen. Genau dort beginnt die nächste Storyline.",virality:45}
     ];
   }
-  const {data,error}=await client.from("media_posts").insert(items.map((x:any)=>({...x,career_id:careerId,generation_source:hasAi()?"openai":"fallback"}))).select();
+  const {data,error}=await client.from("media_posts").insert(items.map((x:any)=>({...x,career_id:careerId,generation_source:hasAi()?"openai":"fallback",language:career?.universes?.language==="en"?"en":"de"}))).select();
   if(error) throw error;
   return data||[];
 }
