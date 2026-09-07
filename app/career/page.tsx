@@ -11,9 +11,9 @@ export default async function Page(){
  const [{data:s},{data:stints},{data:events},{data:injuries},{data:milestones}]=await Promise.all([
   client.from("player_game_stats").select("*,team:teams(*)").eq("career_id",career.id).order("created_at"),
   client.from("team_stints").select("*,teams(*)").eq("career_id",career.id).order("start_date"),
-  client.from("career_events").select("*").eq("career_id",career.id).order("event_date",{ascending:false}),
+  client.from("career_events").select("*").eq("career_id",career.id).eq("language",lang).order("event_date",{ascending:false}),
   client.from("injuries").select("*").eq("career_id",career.id).order("start_date",{ascending:false}),
-  client.from("milestones").select("*").eq("career_id",career.id).order("achieved_at",{ascending:false})
+  client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false})
  ]);
  const x=summarizeStats(s||[]);
  const today=lang==="en"?"today":"heute";
