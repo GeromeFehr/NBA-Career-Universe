@@ -9,6 +9,7 @@ export async function POST(req:Request){
     const b=await req.json();
     const {data:game}=await client.from("games").select("*").eq("id",b.gameId).single();
     if(!game)return NextResponse.json({error:"Spiel nicht gefunden"},{status:404});
+    if(game.universe_id&&game.universe_id!==universe.id)return NextResponse.json({error:"Dieses manuelle Spiel gehört zu einem anderen Universe."},{status:403});
 
     const {data:stint}=await client.from("team_stints").select("*")
       .eq("career_id",career.id)
