@@ -1,7 +1,39 @@
 export type StatRow = Record<string, any>;
 
+function playedRows(rows:StatRow[]){
+  return rows.filter(r=>r.appearance_status==="played");
+}
+
+function doubleDigitCategories(r:StatRow){
+  return ["points","rebounds","assists","steals","blocks"]
+    .filter(k=>Number(r[k]||0)>=10).length;
+}
+
+export function summarizeCareerMarks(rows:StatRow[]){
+  const played=playedRows(rows);
+  const max=(k:string)=>played.reduce((a,r)=>Math.max(a,Number(r[k]||0)),0);
+  const count=(fn:(r:StatRow)=>boolean)=>played.filter(fn).length;
+
+  return {
+    games:played.length,
+    careerHighPoints:max("points"),
+    careerHighRebounds:max("rebounds"),
+    careerHighAssists:max("assists"),
+    careerHighSteals:max("steals"),
+    careerHighBlocks:max("blocks"),
+    doubleDoubles:count(r=>doubleDigitCategories(r)>=2),
+    tripleDoubles:count(r=>doubleDigitCategories(r)>=3),
+    games20Plus:count(r=>Number(r.points||0)>=20),
+    games30Plus:count(r=>Number(r.points||0)>=30),
+    games40Plus:count(r=>Number(r.points||0)>=40),
+    games50Plus:count(r=>Number(r.points||0)>=50),
+    games60Plus:count(r=>Number(r.points||0)>=60),
+    games70Plus:count(r=>Number(r.points||0)>=70)
+  };
+}
+
 export function summarizeStats(rows: StatRow[]) {
-  const played = rows.filter(r => r.appearance_status === "played");
+  const played = playedRows(rows);
   const n = played.length;
   const sum = (k:string) => played.reduce((a,r)=>a + Number(r[k] || 0),0);
   const max = (k:string) => played.reduce((a,r)=>Math.max(a,Number(r[k]||0)),0);
@@ -19,6 +51,7 @@ export function summarizeStats(rows: StatRow[]) {
     careerHighPoints: max("points"),
     careerHighRebounds: max("rebounds"),
     careerHighAssists: max("assists"),
+    careerHighSteals: max("steals"),
     careerHighBlocks: max("blocks")
   };
 }
