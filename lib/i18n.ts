@@ -16,7 +16,7 @@ const dict={
     tradeCenter:"Trade Center",leagueInterest:"Interesse ligaweit",setup:"Setup & Architektur",
     language:"Sprache",german:"Deutsch",english:"English",save:"Speichern",account:"Account",activeUniverse:"Aktives Universe",
     privacy:"Datenschutz",ai:"KI",careerValues:"Karrierewerte",injuries:"Verletzungen",gameLog:"Game Log",
-    public:"Öffentlich",private:"Privat"
+    public:"Öffentlich",private:"Privat",world:"Welt",playoffs:"Playoffs",trophyRoom:"Trophy Room",interviews:"Presse",pregame:"Pregame"
   },
   en:{
     feed:"Feed",schedule:"Schedule",career:"Career",news:"News",social:"Social",trades:"Trades",awards:"Awards",
@@ -29,7 +29,7 @@ const dict={
     tradeCenter:"Trade Center",leagueInterest:"League-wide Interest",setup:"Setup & Architecture",
     language:"Language",german:"Deutsch",english:"English",save:"Save",account:"Account",activeUniverse:"Active Universe",
     privacy:"Privacy",ai:"AI",careerValues:"Career Stats",injuries:"Injuries",gameLog:"Game Log",
-    public:"Public",private:"Private"
+    public:"Public",private:"Private",world:"World",playoffs:"Playoffs",trophyRoom:"Trophy Room",interviews:"Press",pregame:"Pregame"
   }
 } as const;
 
