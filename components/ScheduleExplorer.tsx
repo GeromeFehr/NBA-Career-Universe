@@ -2,6 +2,7 @@
 import {useMemo,useState} from "react";
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
+import CompetitionBadge from "@/components/CompetitionBadge";
 
 export default function ScheduleExplorer({games,teams,universeDate}:{games:any[];teams:any[];universeDate:string}){
   const [team,setTeam]=useState("ALL"),[status,setStatus]=useState("ALL"),[month,setMonth]=useState("ALL"),[q,setQ]=useState("");
@@ -19,11 +20,11 @@ export default function ScheduleExplorer({games,teams,universeDate}:{games:any[]
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Team suchen…"/>
     </div>
     <div className="scheduleList">
-      {filtered.map(g=><Link href={`/game/${g.id}`} key={g.id} className={`scheduleRow ${g.game_day===universeDate?"todayRow":""}`}>
+      {filtered.map(g=><Link href={g.status==="completed"?`/game/${g.id}`:`/game/${g.id}#stats`} key={g.id} className={`scheduleRow ${g.game_day===universeDate?"todayRow":""}`}>
         <div><b>{g.game_day}</b><small>{new Date(g.game_date).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"})}</small></div>
         <div className="matchup"><TeamBadge team={g.away} small/><strong>{g.away?.city} {g.away?.name}</strong><span>@</span><TeamBadge team={g.home} small/><strong>{g.home?.city} {g.home?.name}</strong></div>
         <div className="score">{g.status==="completed"?`${g.away_score} : ${g.home_score}`:<span className="scheduleAction">Stats →</span>}</div>
-        <div><span className="pill">{g.stage||"Regular"}</span></div>
+        <div className="competitionCell"><CompetitionBadge stage={g.stage} small/><span className="pill">{g.stage||"Regular"}</span></div>
       </Link>)}
       {!filtered.length&&<div className="empty">Keine Spiele für diesen Filter.</div>}
     </div>
