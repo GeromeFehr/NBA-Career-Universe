@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 15
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
       SUPABASE_SERVICE_ROLE_KEY: placeholder
       ADMIN_PASSWORD: placeholder
       SESSION_TOKEN: placeholder-session-token-for-ci-only
@@ -22,7 +23,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install
       - run: npm run check
       - run: npm run build
