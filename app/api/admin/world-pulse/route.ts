@@ -1,2 +1,2 @@
-import {NextResponse} from "next/server";import {requireAdmin} from "@/lib/auth";import {db} from "@/lib/db";import {generateWorldPulse} from "@/lib/ai";
-export async function POST(){try{await requireAdmin();const {data:c}=await db().from("career_profiles").select("id").limit(1).single();if(!c)throw new Error("Career profile not found");const items=await generateWorldPulse(c.id);return NextResponse.json({ok:true,items})}catch(e:any){return NextResponse.json({error:e.message},{status:e.message==="UNAUTHORIZED"?401:500})}}
+import {NextResponse} from "next/server";import {requireAdmin,apiStatus} from "@/lib/auth";import {generateWorldPulse} from "@/lib/ai";
+export async function POST(){try{const {career}=await requireAdmin();const items=await generateWorldPulse(career.id);return NextResponse.json({ok:true,items})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)})}}
