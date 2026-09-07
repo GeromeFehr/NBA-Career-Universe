@@ -83,3 +83,16 @@ input,select,textarea,button{font:inherit;color:white;background:#0a0f18;border:
 .inlineAction{display:flex;flex-direction:column;align-items:flex-end;gap:5px}.inlineAction small{color:var(--muted)}
 .feedLabel{font-size:10px;letter-spacing:.15em;font-weight:950;color:#ff9f78}.feedCard{position:relative}.feedCard.breaking{border-color:#70323b}.feedCard.social{border-color:#354b6e}.feedCard.expert{border-color:#405978}
 @media(max-width:700px){.interviewOptions,.choiceGrid{grid-template-columns:1fr}.gradeHero{grid-template-columns:1fr}.gradeHero>strong{text-align:left}.seriesGame{grid-template-columns:70px 1fr}.seriesGame>strong{grid-column:2}.inlineAction{align-items:stretch}}
+
+/* AI usage + economy screenshot flow */
+.usageCompact{display:grid;gap:7px}
+.usageCompact strong{font-size:30px;line-height:1}
+.usageCompact small{color:var(--muted)}
+.usageBreakdown{display:grid;gap:8px;margin-top:18px}
+.usageBreakdown>div{display:grid;grid-template-columns:minmax(130px,1fr) auto auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid #28354b;border-radius:12px;background:#0c121d}
+.usageBreakdown span{text-transform:capitalize}
+.usageBreakdown small{color:var(--muted);text-align:right}
+.usageNote{margin:14px 0 0}
+.scanSavings{margin:4px 0 12px}
+.secondaryButton{background:#131c2b;border:1px solid #3a4a67;color:#dce7f7}
+.precisionRetry{margin:0 0 18px}
