@@ -1,10 +1,12 @@
 import Link from "next/link";
+import {mediaKindLabel} from "@/lib/media-kind";
 
 export default function MediaCard({post,compact=false}:{post:any;compact?:boolean}){
+  const lang=post.language==="en"?"en":"de";
   return <article className={`mediaCard ${compact?"compact":""} tone-${String(post.tone||"").toLowerCase()} kind-${String(post.kind||"").toLowerCase()}`}>
     <div className="mediaMeta">
       <span className="pill">{post.outlet}</span>
-      <span>{post.kind}</span>
+      <span>{mediaKindLabel(post.kind,lang)}</span>
       <span>🔥 {post.virality||0}</span>
     </div>
     <h3>{post.headline}</h3>
