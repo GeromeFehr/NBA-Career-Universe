@@ -10,10 +10,13 @@ export default async function Page(){
     loadCareerSchedule(client,career,universe)
   ]);
 
+  const regularCount=relevant.filter((g:any)=>String(g.stage||"").toLowerCase().includes("regular")).length;
+  const postseasonCount=relevant.length-regularCount;
+
   return <>
     <div className="sectionHead">
       <div><span className="eyebrow">MY TEAM · {universe.name}</span><h1>Karriere-Spielplan</h1></div>
-      <div className="muted">{relevant.length} relevante Spiele</div>
+      <div className="scheduleCount"><strong>{regularCount}/82</strong><span>Regular Season{postseasonCount>0?` · +${postseasonCount} Postseason/Custom`:" · 2 Flexspiele ggf. noch TBD"}</span></div>
     </div>
     <p className="muted">
       Angezeigt werden nur Spiele deiner Karriere: bereits gespielte Partien bleiben in der Historie,
