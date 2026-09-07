@@ -35,6 +35,7 @@ export default function QuickGameEntry({
   const [busy,setBusy]=useState(false);
   const [scanBusy,setScanBusy]=useState(false);
   const [msg,setMsg]=useState("");
+  const [confidence,setConfidence]=useState<Record<string,number>>({});
   const editing=Boolean(existingStat||existingResult);
   const en=language==="en";
 
@@ -61,6 +62,7 @@ export default function QuickGameEntry({
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
 
       const s=j.scan||{};
+      setConfidence(s.field_confidence||{});
       const home=abbr(game.home?.abbreviation),away=abbr(game.away?.abbreviation);
       let homeScore=s.home_score,awayScore=s.away_score;
 
@@ -156,6 +158,11 @@ export default function QuickGameEntry({
       {en?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards.":"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert."}
     </p>
     {msg&&<div className="notice inlineNotice">{msg}</div>}
+    {Object.keys(confidence).length>0&&<div className="confidenceGrid">
+      {Object.entries(confidence).filter(([,v])=>Number(v)>0).map(([k,v])=><span className={`confidenceChip ${Number(v)<70?"low":Number(v)<90?"mid":"high"}`} key={k}>
+        <b>{k.replaceAll("_"," ")}</b><i>{v}%</i>
+      </span>)}
+    </div>}
 
     <form ref={formRef} onSubmit={submit}>
       <div className="grid2">
@@ -193,7 +200,10 @@ export default function QuickGameEntry({
       </div>
 
       <label>{en?"Injury / status":"Verletzung / Status"}<textarea name="injuryNote" defaultValue={existingStat?.injury_note||""}/></label>
-      <label>{en?"Story notes":"Story-Notizen"}<textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""} placeholder="Clutch, Buzzer Beater, Streit, Poster Dunk, Coach-Reaktion…"/></label>
+      <label>{en?"What happened? / Story notes":"Was ist passiert? / Story-Notizen"}
+        <textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""}
+          placeholder={en?"Example: 18 points in the fourth, blocked the star, got a tech after trash talk…":"Beispiel: 18 Punkte im 4. Viertel, Star geblockt, Tech nach Trash Talk…"}/>
+      </label>
       <label>{en?"Other notable players / box-score notes":"Andere auffällige Spieler / Boxscore-Notizen"}<textarea name="notables" placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
 
       <button disabled={busy}>{busy?(en?"Saving…":"Speichere…"):editing?(en?"Save changes":"Änderungen speichern"):(en?"Complete game + save stats":"Spiel abschließen + Stats speichern")}</button>
