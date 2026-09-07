@@ -453,3 +453,8 @@ export async function rebuildUniverseSystems(career:any,universe:any){
   }
   return {processed};
 }
+
+
+export async function refreshLegacyScore(careerId:string){
+  return updateLegacy(careerId);
+}
