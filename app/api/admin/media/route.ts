@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {requireAdmin} from "@/lib/auth";import {generateGameMedia} from "@/lib/ai";
+export async function POST(req:Request){try{await requireAdmin();const b=await req.json();const items=await generateGameMedia(b.statId);return NextResponse.json({ok:true,items})}catch(e:any){return NextResponse.json({error:e.message},{status:e.message==="UNAUTHORIZED"?401:500})}}

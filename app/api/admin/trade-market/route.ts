@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {requireAdmin} from "@/lib/auth";import {db} from "@/lib/db";import {generateTradeMarket} from "@/lib/ai";
+export async function POST(){try{await requireAdmin();const {data:c}=await db().from("career_profiles").select("id").limit(1).single();const offers=await generateTradeMarket(c.id);return NextResponse.json({ok:true,offers,message:`${offers.length} Angebote erzeugt`})}catch(e:any){return NextResponse.json({error:e.message},{status:e.message==="UNAUTHORIZED"?401:500})}}

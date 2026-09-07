@@ -1,0 +1,2 @@
+import {db} from "@/lib/db";import MediaCard from "@/components/MediaCard";export const dynamic="force-dynamic";
+export default async function Page(){const {data}=await db().from("media_posts").select("*").order("created_at",{ascending:false}).limit(200);return <><div className="sectionHead"><div><span className="eyebrow">SOCIAL FEED</span><h1>Timeline</h1></div></div><div className="mediaStack">{(data||[]).filter((x:any)=>x.kind==="social"||x.kind==="wildcard").map((p:any)=><MediaCard key={p.id} post={p}/>)}</div></>}

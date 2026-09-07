@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {requireAdmin} from "@/lib/auth";import {db} from "@/lib/db";import {moveTeam} from "@/lib/trade";
+export async function POST(req:Request){try{await requireAdmin();const b=await req.json();const client=db();const {data:c}=await client.from("career_profiles").select("*").limit(1).single();await moveTeam(c.id,b.toTeamId,b.date||c.universe_date,b.notes||"Manueller MyNBA-Teamwechsel.");return NextResponse.json({ok:true})}catch(e:any){return NextResponse.json({error:e.message},{status:e.message==="UNAUTHORIZED"?401:500})}}

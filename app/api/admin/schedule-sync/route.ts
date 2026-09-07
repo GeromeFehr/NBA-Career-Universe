@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {requireAdmin} from "@/lib/auth";import {syncSchedule} from "@/lib/schedule";
+export async function POST(){try{await requireAdmin();const r=await syncSchedule();return NextResponse.json({ok:true,message:`${r.imported} Spiele importiert · Quelle ${r.source}`,result:r})}catch(e:any){return NextResponse.json({error:e.message},{status:e.message==="UNAUTHORIZED"?401:500})}}
