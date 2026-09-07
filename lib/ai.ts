@@ -200,13 +200,16 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
 
 export async function generateTradeMarket(careerId:string) {
   const client=db();
-  const [{data:career},{data:teams},{data:stats},{data:recent}] = await Promise.all([
-    client.from("career_profiles").select("*,current_team:teams(*),universes(language)").eq("id",careerId).single(),
+  const {data:career}:any = await client.from("career_profiles")
+    .select("*,current_team:teams(*),universes(language)")
+    .eq("id",careerId).single();
+  if(!career) throw new Error("Career not found");
+  const language=career?.universes?.language==="en"?"en":"de";
+  const [{data:teams},{data:stats},{data:recent}] = await Promise.all([
     client.from("teams").select("*").eq("active",true),
     client.from("player_game_stats").select("*").eq("career_id",careerId).order("created_at",{ascending:false}).limit(12),
-    client.from("trade_interest").select("*,teams(*)").eq("career_id",careerId).eq("language",career?.universes?.language==="en"?"en":"de").order("created_at",{ascending:false}).limit(20)
+    client.from("trade_interest").select("*,teams(*)").eq("career_id",careerId).eq("language",language).order("created_at",{ascending:false}).limit(20)
   ]);
-  if(!career) throw new Error("Career not found");
   const eligible=(teams||[]).filter((t:any)=>t.id!==career.current_team_id);
   let picks:any[]=[];
   if (hasAi()) {
@@ -247,7 +250,6 @@ RECENT_INTEREST=${JSON.stringify(recent)}`;
     }));
   }
 
-  const language=career?.universes?.language==="en"?"en":"de";
   await client.from("trade_offers").update({status:"withdrawn"}).eq("career_id",careerId).eq("language",language).eq("status","pending");
   const inserted:any[]=[];
   for(const p of picks) {
