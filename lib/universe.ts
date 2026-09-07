@@ -39,3 +39,27 @@ export function mergeUniverseResults(games: any[], results: any[]) {
     };
   });
 }
+
+
+export function careerScheduleGames(
+  games:any[],
+  results:any[],
+  playerStats:any[],
+  currentTeamId:string,
+  universeDate:string,
+  universeId:string
+){
+  const merged=mergeUniverseResults(games||[],results||[]);
+  const historicalGameIds=new Set((playerStats||[]).map((s:any)=>s.game_id));
+  return merged
+    .filter((g:any)=>{
+      const isUniverseManual=g.universe_id===universeId;
+      const isHistorical=historicalGameIds.has(g.id);
+      const isCurrentTeamFuture=
+        g.game_day>=universeDate &&
+        (g.home_team_id===currentTeamId||g.away_team_id===currentTeamId) &&
+        (g.universe_id==null||g.universe_id===universeId);
+      return isUniverseManual||isHistorical||isCurrentTeamFuture;
+    })
+    .sort((a:any,b:any)=>new Date(a.game_date).getTime()-new Date(b.game_date).getTime());
+}
