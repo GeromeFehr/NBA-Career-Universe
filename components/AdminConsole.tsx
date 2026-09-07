@@ -1,20 +1,12 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
+import {optimizeImages} from "@/lib/image-optimize";
 
 async function api(path:string,body?:any,method="POST"){
   const r=await fetch(path,{method,headers:{"content-type":"application/json"},body:body?JSON.stringify(body):undefined});
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
   return j;
-}
-
-function readFile(file:File){
-  return new Promise<string>((resolve,reject)=>{
-    const r=new FileReader();
-    r.onload=()=>resolve(String(r.result||""));
-    r.onerror=()=>reject(new Error("Image could not be read."));
-    r.readAsDataURL(file);
-  });
 }
 
 function cleanTeam(v:any){return String(v||"").trim().toUpperCase().replace(/[^A-Z]/g,"")}
@@ -87,13 +79,13 @@ export default function AdminConsole({language}:{language:"de"|"en"}){
       <span className="eyebrow">SCREENSHOT IMPORT</span>
       <h2>{tx("2K-Screenshot oder Handyfoto auslesen","Read 2K screenshot or phone photo")}</h2>
       <p className="muted">{tx(
-        "Lade bis zu vier Bilder vom selben Spiel hoch. Scoreboard und Boxscore können auf getrennten Screenshots liegen. Die Bilder werden nur zur Analyse an die KI geschickt und nicht als Foto gespeichert.",
-        "Upload up to four images from the same game. Scoreboard and box score may be on separate screenshots. Images are sent only for AI analysis and are not stored as photos."
+        "Starte möglichst mit einem Bild. Maximal zwei Bilder werden verkleinert und im Sparmodus analysiert. Das zweite Bild nur nutzen, wenn Scoreboard und Boxscore getrennt sind.",
+        "Start with one image when possible. Up to two images are resized and analyzed in economy mode. Use the second only when scoreboard and box score are separate."
       )}</p>
       <form onSubmit={async e=>{
         e.preventDefault();
         const input=e.currentTarget.elements.namedItem("screenshots") as HTMLInputElement;
-        const files=Array.from(input.files||[]).slice(0,4);
+        const files=Array.from(input.files||[]).slice(0,2);
         if(!files.length){setMsg(tx("Bitte mindestens ein Bild auswählen.","Please select at least one image."));return}
         if(!files.every(f=>["image/jpeg","image/png","image/webp","image/gif"].includes(f.type))){
           setMsg(tx("Bitte JPG, PNG, WEBP oder GIF verwenden.","Please use JPG, PNG, WEBP or GIF."));
@@ -101,14 +93,16 @@ export default function AdminConsole({language}:{language:"de"|"en"}){
         }
         setBusy(true);setMsg("");
         try{
-          const images=await Promise.all(files.map(readFile));
-          const r=await api("/api/admin/scoreboard-scan",{images});
+          const optimized=await optimizeImages(files,2);
+          const images=optimized.map(x=>x.dataUrl);
+          const imageMeta=optimized.map(x=>({originalBytes:x.originalBytes,optimizedBytes:x.optimizedBytes,width:x.width,height:x.height}));
+          const r=await api("/api/admin/scoreboard-scan",{images,imageMeta,precision:"low"});
           setScan(r);setScanKey(v=>v+1);
           setMsg(r.message||tx("Screenshot analysiert. Werte bitte prüfen.","Screenshot analyzed. Please review the values."));
         }catch(err:any){setMsg(`${tx("Fehler","Error")}: ${err.message}`)}
         finally{setBusy(false)}
       }}>
-        <label>{tx("Bilder auswählen","Choose images")}
+        <label>{tx("1–2 Bilder auswählen","Choose 1–2 images")}
           <input name="screenshots" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple capture="environment"/>
         </label>
         <button disabled={busy}>{busy?tx("Analysiere…","Analyzing…"):tx("Screenshot(s) analysieren","Analyze screenshot(s)")}</button>
