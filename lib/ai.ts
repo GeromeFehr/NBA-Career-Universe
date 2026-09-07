@@ -38,21 +38,22 @@ export async function buildGameContext(statId:string) {
     .select("*,career_profiles(*),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
     .eq("id",statId).single();
   if (error || !stat) throw new Error("Stat line not found");
-  const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats}] = await Promise.all([
-    client.from("game_notables").select("*").eq("game_id",stat.game_id),
+  const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame}] = await Promise.all([
+    client.from("game_notables").select("*").eq("career_id",stat.career_id).eq("game_id",stat.game_id),
     client.from("media_posts").select("outlet,kind,headline,body,tone").eq("career_id",stat.career_id).order("created_at",{ascending:false}).limit(18),
     client.from("story_arcs").select("*").eq("career_id",stat.career_id).eq("status","active").limit(8),
     client.from("injuries").select("*").eq("career_id",stat.career_id).order("start_date",{ascending:false}).limit(5),
     client.from("trade_interest").select("*,teams(*)").eq("career_id",stat.career_id).order("interest_score",{ascending:false}).limit(8),
-    client.from("player_game_stats").select("*").eq("career_id",stat.career_id).order("created_at")
+    client.from("player_game_stats").select("*").eq("career_id",stat.career_id).order("created_at"),
+    client.from("universe_games").select("*").eq("universe_id",stat.career_profiles.universe_id).eq("game_id",stat.game_id).maybeSingle()
   ]);
-  const g=stat.games;
+  const g={...stat.games,status:universeGame?.status||"scheduled",home_score:universeGame?.home_score??null,away_score:universeGame?.away_score??null};
   const myTeam=stat.team_id;
-  const won = g?.status==="completed" && (
+  const won = g.status==="completed" && (
     (g.home_team_id===myTeam && Number(g.home_score)>Number(g.away_score)) ||
     (g.away_team_id===myTeam && Number(g.away_score)>Number(g.home_score))
   );
-  return {stat,career:stat.career_profiles,game:g,notables:notables||[],recent:recent||[],arcs:arcs||[],injuries:injuries||[],interest:interest||[],history:allStats||[],result:g?.status==="completed"?(won?"win":"loss"):"unknown"};
+  return {stat,career:stat.career_profiles,game:g,notables:notables||[],recent:recent||[],arcs:arcs||[],injuries:injuries||[],interest:interest||[],history:allStats||[],result:g.status==="completed"?(won?"win":"loss"):"unknown"};
 }
 
 export async function generateGameMedia(statId:string) {
