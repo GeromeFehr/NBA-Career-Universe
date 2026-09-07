@@ -411,3 +411,45 @@ export async function initializeSeasonGoals(career:any,seasonId:string,language?
   await ensureGoals(career,seasonId,lang);
   return true;
 }
+
+
+export async function rebuildUniverseSystems(career:any,universe:any){
+  const client=db();
+  const lang:Lang=universe.language==="en"?"en":"de";
+  await Promise.all([
+    client.from("rivalries").delete().eq("career_id",career.id),
+    client.from("persona_memories").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("pregame_coverage").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("postgame_grades").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("season_goals").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("career_records").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("interviews").delete().eq("career_id",career.id).eq("language",lang),
+    client.from("fanbase_metrics").delete().eq("career_id",career.id),
+    client.from("story_arcs").delete().eq("career_id",career.id).eq("language",lang).in("category",["hype","adversity","performance"])
+  ]);
+  await client.from("universe_reputation").upsert({
+    career_id:career.id,league_reputation:50,star_power:50,media_hype:50,fan_approval:50,
+    expert_respect:50,hater_heat:35,cultural_impact:35,updated_at:new Date().toISOString()
+  },{onConflict:"career_id"});
+  await client.from("legacy_scores").upsert({career_id:career.id,score:0,breakdown:{},updated_at:new Date().toISOString()},{onConflict:"career_id"});
+
+  const {data:stats,error}=await client.from("player_game_stats")
+    .select("*,games(*)").eq("career_id",career.id).order("created_at");
+  if(error)throw error;
+  let processed=0;
+  for(const stat of stats||[]){
+    const game=stat.games;
+    if(!game)continue;
+    const {data:ug}=await client.from("universe_games").select("*")
+      .eq("universe_id",universe.id).eq("game_id",game.id).maybeSingle();
+    const home=Number(ug?.home_score??game.home_score??0),away=Number(ug?.away_score??game.away_score??0);
+    const won=stat.team_id===game.home_team_id?home>away:away>home;
+    const lost=stat.team_id===game.home_team_id?home<away:away<home;
+    await updateUniverseAfterGame({
+      career,universe,game:{...game,home_score:home,away_score:away},stat,
+      result:won?"win":lost?"loss":"unknown"
+    });
+    processed++;
+  }
+  return {processed};
+}
