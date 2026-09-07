@@ -25,6 +25,11 @@ export default async function Nav(){
         <Link href="/">{t(lang,"feed")}</Link>
         <Link href="/schedule">{t(lang,"schedule")}</Link>
         <Link href="/career">{t(lang,"career")}</Link>
+        <Link href="/world">{t(lang,"world")}</Link>
+        <Link href="/pregame">{t(lang,"pregame")}</Link>
+        <Link href="/playoffs">{t(lang,"playoffs")}</Link>
+        <Link href="/trophy-room">{t(lang,"trophyRoom")}</Link>
+        <Link href="/interviews">{t(lang,"interviews")}</Link>
         <Link href="/media">{t(lang,"news")}</Link>
         <Link href="/social">{t(lang,"social")}</Link>
         <Link href="/trades">{t(lang,"trades")}</Link>
