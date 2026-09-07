@@ -183,7 +183,7 @@ export default function QuickGameEntry({
       type="button"
       className="secondaryButton precisionRetry"
       disabled={scanBusy}
-      onClick={()=>requestScan(lastScanPayload,"high")}
+      onClick={()=>lastScanPayload&&requestScan(lastScanPayload,"high")}
     >{en?"Recheck missing/uncertain values with high precision":"Fehlende/unsichere Werte präzise nachprüfen"}</button>}
 
     <form ref={formRef} onSubmit={submit}>
