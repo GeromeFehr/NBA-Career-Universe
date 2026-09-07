@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 import {detectMilestones} from "@/lib/story";
 import {generateGameMedia} from "@/lib/ai";
-import {updateUniverseAfterGame} from "@/lib/world-engine";
+import {refreshDerivedAfterStatEdit,updateUniverseAfterGame} from "@/lib/world-engine";
 
 export async function POST(req:Request){
   try{
@@ -24,6 +24,12 @@ export async function POST(req:Request){
     if(teamId!==game.home_team_id&&teamId!==game.away_team_id){
       return NextResponse.json({error:"Dein Team war an diesem Datum nicht in diesem Spiel."},{status:400});
     }
+
+    const [{data:existingStatBefore},{data:existingResultBefore}]=await Promise.all([
+      client.from("player_game_stats").select("*").eq("career_id",career.id).eq("game_id",game.id).maybeSingle(),
+      client.from("universe_games").select("*").eq("universe_id",universe.id).eq("game_id",game.id).maybeSingle()
+    ]);
+    const isEdit=Boolean(existingStatBefore||existingResultBefore?.status==="completed");
 
     const homeScore=Number(b.homeScore),awayScore=Number(b.awayScore);
     const {error:gameErr}=await client.from("universe_games").upsert({
@@ -64,33 +70,49 @@ export async function POST(req:Request){
       if(notableErr)throw notableErr;
     }
 
+    const {data:sourceInjury}=await client.from("injuries").select("*")
+      .eq("career_id",career.id).eq("source_game_id",game.id).maybeSingle();
     if(statPayload.injured&&statPayload.injury_note){
-      await client.from("injuries").insert({career_id:career.id,start_date:game.game_day,injury:statPayload.injury_note,severity:"unknown",status:"active",source_game_id:game.id});
+      const injuryPayload={career_id:career.id,start_date:game.game_day,injury:statPayload.injury_note,severity:sourceInjury?.severity||"unknown",status:sourceInjury?.status||"active",source_game_id:game.id};
+      if(sourceInjury)await client.from("injuries").update(injuryPayload).eq("id",sourceInjury.id);
+      else await client.from("injuries").insert(injuryPayload);
+    }else if(isEdit&&sourceInjury){
+      await client.from("injuries").delete().eq("id",sourceInjury.id);
     }
 
+    if(isEdit)await client.from("milestones").delete().eq("career_id",career.id).eq("game_id",game.id);
     const milestones=await detectMilestones(career.id,stat);
     const lang=universe.language==="en"?"en":"de";
     const won=teamId===game.home_team_id?homeScore>awayScore:awayScore>homeScore;
     const lost=teamId===game.home_team_id?homeScore<awayScore:awayScore<homeScore;
     const result=won?"win":lost?"loss":"unknown";
-    await client.from("career_events").insert({
-      career_id:career.id,event_date:game.game_day,event_type:"game",
+    const eventPayload={
+      event_date:game.game_day,event_type:"game",
       title:lang==="en"?`${awayScore}-${homeScore} · Game completed`:`${awayScore}-${homeScore} · Spiel abgeschlossen`,
       description:b.storyNotes||`${stat.points} PTS, ${stat.rebounds} REB, ${stat.assists} AST, ${stat.blocks} BLK`,
       metadata:{game_id:game.id,stat_id:stat.id,universe_id:universe.id},
       language:lang
-    });
+    };
+    if(isEdit){
+      const {data:event}=await client.from("career_events").select("id")
+        .eq("career_id",career.id).eq("event_type","game")
+        .contains("metadata",{game_id:game.id}).maybeSingle();
+      if(event)await client.from("career_events").update(eventPayload).eq("id",event.id);
+    }else{
+      await client.from("career_events").insert({career_id:career.id,...eventPayload});
+      await Promise.all([
+        client.from("career_profiles").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",career.id),
+        client.from("world_settings").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("career_id",career.id),
+        client.from("universes").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",universe.id)
+      ]);
+    }
 
-    await Promise.all([
-      client.from("career_profiles").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",career.id),
-      client.from("world_settings").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("career_id",career.id),
-      client.from("universes").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",universe.id)
-    ]);
-
-    const world=await updateUniverseAfterGame({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat,result});
+    const world=isEdit
+      ?await refreshDerivedAfterStatEdit({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat})
+      :await updateUniverseAfterGame({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat,result});
     let media:any[]=[];
     let mediaWarning:string|null=null;
-    if(b.autoMedia!==false){
+    if(!isEdit&&b.autoMedia!==false){
       try{
         media=await generateGameMedia(stat.id);
       }catch(err){
@@ -100,7 +122,11 @@ export async function POST(req:Request){
         console.error("Optional media generation failed",err);
       }
     }
-    return NextResponse.json({ok:true,statId:stat.id,milestones,mediaCount:media.length,world,mediaWarning});
+    return NextResponse.json({
+      ok:true,statId:stat.id,milestones,mediaCount:media.length,world,mediaWarning,
+      mode:isEdit?"edit":"create",
+      preservedExistingContent:isEdit
+    });
   }catch(e){
     return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
   }
