@@ -162,11 +162,17 @@ ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
     });
     items=JSON.parse(r.output_text).items;
   } else {
-    items=[
+    const en=career?.universes?.language==="en";
+    items=en?[
+      {outlet:"League Desk",kind:"analysis",author_name:"Staff",tone:"analytical",headline:"The next test is coming",body:`For ${career.player_name}, the focus shifts to the next stretch of the schedule.`,virality:52},
+      {outlet:"Trade Signal",kind:"rumor",author_name:"R. Fields",tone:"speculative",headline:"Scouts are still watching",body:"The form has league-wide attention. Real movement still depends on actual offers in the Trade Center.",virality:61},
+      {outlet:"HoopsTalk",kind:"social",author_name:"@HoopsTalkLive",tone:"hype",headline:"What is the ceiling?",body:"The rookie discussion stopped being just a rookie discussion a while ago.",virality:74},
+      {outlet:"Film Room Weekly",kind:"expert",author_name:"Tess Morgan",tone:"technical",headline:"Counter-scouting starts now",body:"After standout performances, opponents will test adjustments. That is where the next storyline begins.",virality:45}
+    ]:[
       {outlet:"League Desk",kind:"analysis",author_name:"Staff",tone:"analytical",headline:"Der nächste Test rückt näher",body:`Für ${career.player_name} verschiebt sich der Fokus auf den nächsten Abschnitt des Spielplans.`,virality:52},
       {outlet:"Trade Signal",kind:"rumor",author_name:"R. Fields",tone:"speculative",headline:"Scouts bleiben aufmerksam",body:"Die Formkurve sorgt ligaweit für Aufmerksamkeit. Konkrete Bewegung hängt aber von echten Angeboten im Trade Center ab.",virality:61},
       {outlet:"HoopsTalk",kind:"social",author_name:"@HoopsTalkLive",tone:"hype",headline:"Was ist die Ceiling?",body:"Die Rookie-Debatte ist längst nicht mehr nur eine Rookie-Debatte.",virality:74},
-      {outlet:"Film Room Weekly",kind:"analysis",author_name:"Tess Morgan",tone:"technical",headline:"Jetzt beginnt das Counter-Scouting",body:"Nach auffälligen Leistungen werden Gegner Anpassungen testen. Genau dort beginnt die nächste Storyline.",virality:45}
+      {outlet:"Film Room Weekly",kind:"expert",author_name:"Tess Morgan",tone:"technical",headline:"Jetzt beginnt das Counter-Scouting",body:"Nach auffälligen Leistungen werden Gegner Anpassungen testen. Genau dort beginnt die nächste Storyline.",virality:45}
     ];
   }
   const {data,error}=await client.from("media_posts").insert(items.map((x:any)=>({...x,career_id:careerId,generation_source:hasAi()?"openai":"fallback"}))).select();
@@ -209,11 +215,16 @@ RECENT_INTEREST=${JSON.stringify(recent)}`;
     });
     picks=JSON.parse(r.output_text).offers;
   } else {
+    const en=career?.universes?.language==="en";
     const sorted=[...eligible].sort((a:any,b:any)=>a.abbreviation.localeCompare(b.abbreviation)).slice(0,5);
     picks=sorted.map((t:any,i:number)=>({
-      team_id:t.id, interest_score:82-i*5, fairness_score:86-i*3,
-      rationale:`${t.city} prüft, ob ein Franchise-Level-Talent den Zeitplan des Teams sofort verändert.`,
-      package_summary:"Junger Starter + mehrere ungeschützte First-Round-Picks + mindestens ein Pick-Swap",
+      team_id:t.id,interest_score:82-i*5,fairness_score:86-i*3,
+      rationale:en
+        ?`${t.city} is evaluating whether a franchise-level talent can immediately change the team's timeline.`
+        :`${t.city} prüft, ob ein Franchise-Level-Talent den Zeitplan des Teams sofort verändert.`,
+      package_summary:en
+        ?"Young starter + multiple unprotected first-round picks + at least one pick swap"
+        :"Junger Starter + mehrere ungeschützte First-Round-Picks + mindestens ein Pick-Swap",
       pressure:i<2?"high":"medium"
     }));
   }
