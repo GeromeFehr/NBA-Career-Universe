@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 import {normalizeAbbr} from "@/lib/team-map";
+import {logAiUsage} from "@/lib/ai-usage";
 
 export const maxDuration=26;
 
@@ -14,23 +15,27 @@ export async function POST(req:Request){
     if(!process.env.OPENAI_API_KEY) return NextResponse.json({error:"OPENAI_API_KEY fehlt."},{status:400});
 
     const b=await req.json();
-    const images=Array.isArray(b.images)?b.images.filter((x:any)=>typeof x==="string"&&x.startsWith("data:image/")).slice(0,4):[];
+    const images=Array.isArray(b.images)?b.images.filter((x:any)=>typeof x==="string"&&x.startsWith("data:image/")).slice(0,2):[];
+    const precision=b.precision==="high"?"high":"low";
     if(!images.length)return NextResponse.json({error:"Kein Screenshot übertragen."},{status:400});
-    if(images.some((x:string)=>x.length>7_500_000))return NextResponse.json({error:"Ein Bild ist zu groß. Bitte Foto/Screenshot verkleinern."},{status:413});
+    if(images.some((x:string)=>x.length>4_500_000))return NextResponse.json({error:universe.language==="en"?"An image is still too large after optimization.":"Ein Bild ist trotz Optimierung noch zu groß."},{status:413});
+
+    let expectedContext="";
+    if(b.expectedGameId){
+      const {data:expected}=await client.from("games")
+        .select("game_day,home:teams!games_home_team_id_fkey(abbreviation),away:teams!games_away_team_id_fkey(abbreviation)")
+        .eq("id",String(b.expectedGameId)).maybeSingle();
+      if(expected)expectedContext=` Expected matchup: ${expected.away?.abbreviation} @ ${expected.home?.abbreviation} on ${expected.game_day}.`;
+    }
 
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
-    const prompt=`Analyze these NBA 2K MyNBA scoreboard / box-score screenshots.
-The controlled career player is "${career.player_name}" on team ${career.current_team?.abbreviation||"unknown"}.
-Extract ONLY values clearly visible in the screenshots. Never guess missing numbers.
-A phone photo may be tilted or contain glare. Multiple images may show the same game and different stat pages.
-Return team abbreviations when possible. If the image does not make home/away orientation clear, still return the two teams and set orientation_confident=false.
-For player stats, look specifically for the controlled player name or a very close shortened form.
-Use null for anything not visible. For field_confidence, score each extracted field from 0-100 based on visual certainty; use 0 when no value is visible. Be conservative: glare, cropping or ambiguous rows should lower confidence.\nDo not infer date from the website; date is only non-null when visible in the screenshot.
-`;
+    const modelName=process.env.OPENAI_MODEL||"gpt-5.6-luna";
+    const prompt=`Read NBA 2K MyNBA scoreboard/box-score image(s). Controlled player: ${career.player_name}; team: ${career.current_team?.abbreviation||"unknown"}.${expectedContext}
+Extract only visible values. Never guess. Use null for missing values. Return team abbreviations when visible. If home/away orientation is unclear set orientation_confident=false. Find the controlled player or a close shortened form. Give conservative 0-100 confidence for every field; 0 if not visible. Date is null unless actually visible.`;
 
-    const inputContent:any[]=[{type:"input_text",text:prompt},...images.map((image_url:string)=>({type:"input_image",image_url,detail:"high"}))];
+    const inputContent:any[]=[{type:"input_text",text:prompt},...images.map((image_url:string)=>({type:"input_image",image_url,detail:precision}))];
     const response=await ai.responses.create({
-      model:process.env.OPENAI_MODEL||"gpt-5.6-luna",
+      model:modelName,
       store:false,
       input:[{role:"user",content:inputContent}],
       text:{format:{
@@ -65,6 +70,21 @@ Use null for anything not visible. For field_confidence, score each extracted fi
           }
         }
       }}
+    });
+
+    await logAiUsage({
+      careerId:career.id,
+      universeId:universe.id,
+      gameId:b.expectedGameId||null,
+      feature:"screenshot_scan",
+      model:modelName,
+      usage:response.usage as any,
+      meta:{
+        seasonId:universe.current_season_id,
+        imageCount:images.length,
+        precision,
+        imageMeta:Array.isArray(b.imageMeta)?b.imageMeta.slice(0,2):[]
+      }
     });
 
     const scan=JSON.parse(response.output_text);
@@ -127,7 +147,14 @@ Use null for anything not visible. For field_confidence, score each extracted fi
       candidates:candidates.map((g:any)=>({id:g.id,game_day:g.game_day,home:g.home,away:g.away,stage:g.stage})),
       message:universe.language==="en"?(matchedGameId?"Screenshot recognized and matched to the game.":"Screenshot recognized. Please verify/select the game."):(matchedGameId?"Screenshot erkannt und Spiel zugeordnet.":"Screenshot erkannt. Bitte Spiel prüfen/auswählen.")
     });
-  }catch(e){
-    return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
+  }catch(e:any){
+    const raw=e instanceof Error?e.message:String(e);
+    const code=String(e?.code||"");
+    const quota=/insufficient_quota|credit|billing|quota/i.test(code+" "+raw);
+    const rate=/rate.?limit|429/i.test(code+" "+raw);
+    let message=raw;
+    if(quota)message="OpenAI API-Guthaben/Quota ist aufgebraucht. Bitte Billing-Guthaben prüfen.";
+    else if(rate)message="OpenAI Rate Limit erreicht. Bitte kurz warten und erneut versuchen.";
+    return NextResponse.json({error:message},{status:quota?402:rate?429:apiStatus(e)});
   }
 }
