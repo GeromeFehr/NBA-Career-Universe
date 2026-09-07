@@ -79,7 +79,7 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
     </section>}
 
     {canEnter
-      ? <QuickGameEntry game={g} existingStat={s} existingResult={ug} language={lang}/>
+      ? <QuickGameEntry game={g} existingStat={s} existingResult={ug} existingNotables={n||[]} language={lang}/>
       : <div className="card muted">{en?"This game is outside your team stint for this date and cannot be entered as a career game.":"Dieses Spiel gehört nicht zu deinem Team-Stint an diesem Datum und kann deshalb nicht als Karriere-Spiel eingetragen werden."}</div>
     }
 
