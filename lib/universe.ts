@@ -40,6 +40,73 @@ export function mergeUniverseResults(games: any[], results: any[]) {
   });
 }
 
+async function fetchPaged(factory:(from:number,to:number)=>Promise<any>, pageSize=1000){
+  const rows:any[]=[];
+  for(let from=0;;from+=pageSize){
+    const {data,error}=await factory(from,from+pageSize-1);
+    if(error)throw error;
+    const batch=data||[];
+    rows.push(...batch);
+    if(batch.length<pageSize)break;
+  }
+  return rows;
+}
+
+function uniqueById(rows:any[]){
+  const m=new Map<string,any>();
+  for(const row of rows||[])if(row?.id)m.set(row.id,row);
+  return Array.from(m.values());
+}
+
+/**
+ * Loads the entire career-relevant schedule without hitting Supabase's default 1000-row cap.
+ * - historical games are kept forever
+ * - future games are only from the currently controlled team
+ * - universe-specific manual games stay isolated
+ */
+export async function loadCareerSchedule(client:any,career:any,universe:any){
+  const playerStats=await fetchPaged((from,to)=>
+    client.from("player_game_stats")
+      .select("game_id,team_id")
+      .eq("career_id",career.id)
+      .order("created_at")
+      .range(from,to)
+  );
+
+  const results=await fetchPaged((from,to)=>
+    client.from("universe_games")
+      .select("*")
+      .eq("universe_id",universe.id)
+      .order("created_at")
+      .range(from,to)
+  );
+
+  const futureGames=await fetchPaged((from,to)=>
+    client.from("games")
+      .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
+      .gte("game_day",career.universe_date)
+      .or(`home_team_id.eq.${career.current_team_id},away_team_id.eq.${career.current_team_id}`)
+      .or(`universe_id.is.null,universe_id.eq.${universe.id}`)
+      .order("game_date")
+      .range(from,to)
+  );
+
+  const historicalIds=Array.from(new Set(playerStats.map((s:any)=>s.game_id).filter(Boolean)));
+  const historicalGames:any[]=[];
+  for(let i=0;i<historicalIds.length;i+=200){
+    const ids=historicalIds.slice(i,i+200);
+    if(!ids.length)continue;
+    const {data,error}=await client.from("games")
+      .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
+      .in("id",ids);
+    if(error)throw error;
+    historicalGames.push(...(data||[]));
+  }
+
+  const games=uniqueById([...historicalGames,...futureGames]);
+  return mergeUniverseResults(games,results)
+    .sort((a:any,b:any)=>new Date(a.game_date).getTime()-new Date(b.game_date).getTime());
+}
 
 export function careerScheduleGames(
   games:any[],
