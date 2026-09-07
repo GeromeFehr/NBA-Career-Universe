@@ -14,7 +14,7 @@ export default function AdminConsole(){
   useEffect(()=>{refresh()},[]);
   async function run(fn:()=>Promise<any>,ok:string){setBusy(true);setMsg("");try{const r=await fn();setMsg(ok+(r?.message?` · ${r.message}`:""));await refresh()}catch(e:any){setMsg(`Fehler: ${e.message}`)}finally{setBusy(false)}}
   const career=data?.career,teams=data?.teams||[],games=data?.careerGames||[],offers=data?.offers||[],injuries=data?.injuries||[];
-  const future=useMemo(()=>games.filter((g:any)=>g.game_day>=String(career?.universe_date||"")).slice(0,25),[games,career]);
+  const future=useMemo(()=>games.filter((g:any)=>g.game_day>=String(career?.universe_date||"")&&g.status!=="completed").slice(0,25),[games,career]);
 
   if(!data) return <div className="card">Control Room wird geladen…</div>;
   if(data.needsSetup) return <div className="card"><h2>Datenbank noch nicht eingerichtet</h2><p>SQL-Migrationen in Supabase ausführen und Environment Variables setzen.</p></div>;
