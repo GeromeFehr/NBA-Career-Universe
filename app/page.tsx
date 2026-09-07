@@ -35,7 +35,7 @@ export default async function Home(){
     client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false}).limit(4),
     client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle(),
     client.from("rivalries").select("*,team:opponent_team_id(*)").eq("career_id",career.id).order("heat",{ascending:false}).limit(1).maybeSingle(),
-    client.from("interviews").select("*").eq("career_id",career.id).eq("language",lang).eq("status","open").order("created_at",{ascending:false}).limit(1).maybeSingle(),
+    client.from("interviews").select("*").eq("career_id",career.id).eq("language",lang).eq("status","open").order("importance",{ascending:false}).order("created_at",{ascending:false}).limit(1).maybeSingle(),
     client.from("legacy_scores").select("*").eq("career_id",career.id).maybeSingle(),
     client.from("trade_sagas").select("*,team:target_team_id(*)").eq("career_id",career.id).eq("language",lang).eq("status","active").order("heat",{ascending:false}).limit(1).maybeSingle(),
     client.from("trade_offers").select("*,to_team:teams!trade_offers_to_team_id_fkey(*)").eq("career_id",career.id).eq("language",lang).eq("status","pending").order("interest_score",{ascending:false}).limit(1).maybeSingle(),
