@@ -2,6 +2,7 @@ import {pageContext} from "@/lib/universe";
 import TeamBadge from "@/components/TeamBadge";
 import MediaCard from "@/components/MediaCard";
 import QuickGameEntry from "@/components/QuickGameEntry";
+import CompetitionBadge from "@/components/CompetitionBadge";
 import {pct} from "@/lib/format";
 
 export const dynamic="force-dynamic";
@@ -41,7 +42,7 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
 
   return <>
     <section className="card gameOverview">
-      <div className="gameMeta">{g.game_day} · {g.stage} · {g.venue||"Arena TBA"} · {universe.name}</div>
+      <div className="gameMeta gameMetaLogo"><CompetitionBadge stage={g.stage} small/><span>{g.game_day} · {g.stage} · {g.venue||"Arena TBA"} · {universe.name}</span></div>
       <div className="gameHero">
         <div className="gameTeam"><TeamBadge team={g.away}/><h2>{g.away?.city}<br/>{g.away?.name}</h2></div>
         <div className="gameScore">{status==="completed"?`${awayScore} : ${homeScore}`:"VS"}</div>
