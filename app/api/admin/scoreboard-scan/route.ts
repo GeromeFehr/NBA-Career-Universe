@@ -37,6 +37,7 @@ Extract only visible values. Never guess. Use null for missing values. Return te
     const response=await ai.responses.create({
       model:modelName,
       store:false,
+      max_output_tokens:900,
       input:[{role:"user",content:inputContent}],
       text:{format:{
         type:"json_schema",name:"nba2k_scoreboard_scan",strict:true,
