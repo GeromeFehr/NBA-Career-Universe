@@ -83,7 +83,7 @@ Create exactly 12 DISTINCT pieces after every game:
 - 1 fan reaction
 - 2 hater/doubt posts that can be harsh, dismissive or provocative without slurs or threats
 - 1 meme/culture post.
-Do not make everyone agree. Praise, skepticism, doubt, criticism and sports-fan hate should coexist when plausible.
+Do not make everyone agree. Praise, skepticism, doubt, criticism and sports-fan hate should coexist when plausible.\nIMPORTANT: the JSON field "kind" is an internal machine key. Never translate it. Use only: analysis, recap, beat, expert, debate, social, fan, hater, meme, rumor, article, wildcard.
 Use recurring fictional voices so the universe develops recognizable personalities:
 - Mara Cole (National Hoops Network): measured, analytical, evidence-first
 - Tess Morgan (Film Room Weekly): technical film analyst, focuses on reads, efficiency and defense
@@ -120,7 +120,7 @@ ${crypto.randomUUID()}`;
             type:"object",additionalProperties:false,
             required:["outlet","kind","author_name","tone","headline","body","virality"],
             properties:{
-              outlet:{type:"string"},kind:{type:"string"},author_name:{type:"string"},
+              outlet:{type:"string"},kind:{type:"string",enum:["analysis","recap","beat","expert","debate","social","fan","hater","meme","rumor","article","wildcard"]},author_name:{type:"string"},
               tone:{type:"string"},headline:{type:"string"},body:{type:"string"},
               virality:{type:"integer",minimum:0,maximum:100}
             }
@@ -176,7 +176,7 @@ export async function generateWorldPulse(careerId:string) {
   let items:any[]=[];
   if (hasAi()) {
     const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
-    const prompt=`Generate a ${career?.universes?.language==="en"?"English":"German"} daily media pulse for a fictional MyNBA career world. Four varied items, no duplicated angles.
+    const prompt=`Generate a ${career?.universes?.language==="en"?"English":"German"} daily media pulse for a fictional MyNBA career world. Four varied items, no duplicated angles. The JSON field "kind" is an internal machine key and must never be translated; use only analysis, recap, beat, expert, debate, social, fan, hater, meme, rumor, article, wildcard.
 Use only supplied canon. You may discuss upcoming matchup pressure, trade chatter, award momentum, team fit, injuries or a developing story arc.
 Do not invent exact stats for unprovided players. Return JSON only.
 ${JSON.stringify({career,stats,offers,arcs,nextGames:relevant,recent})}`;
