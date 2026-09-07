@@ -23,16 +23,16 @@ export default async function Page(){
       ?"Trade rumors now develop as multi-day sagas. Your public response can raise or cool the pressure."
       :"Trade-Gerüchte entwickeln sich jetzt als mehrtägige Sagas. Deine öffentliche Reaktion kann den Druck erhöhen oder abkühlen."}</p>
 
-    {sagaRows.map((x:any)=><TradeSagaPanel key={x.saga.id} saga={x.saga} updates={x.updates} language={lang}/>)}
+    {sagaRows.length?sagaRows.map((x:any)=><TradeSagaPanel key={x.saga.id} saga={x.saga} updates={x.updates} language={lang}/>):<div className="emptyState compact">{en?"No active trade saga yet. Interest builds organically as your career develops.":"Noch keine aktive Trade-Saga. Interesse baut sich jetzt organisch mit deiner Karriere auf."}</div>}
 
     <div className="sectionHead"><h2>{en?"Current Offers":"Aktuelle Angebote"}</h2></div>
-    <div className="offerGrid">{(o||[]).map((x:any)=><div className="offerCard" key={x.id}>
+    {(o||[]).length?<div className="offerGrid">{(o||[]).map((x:any)=><div className="offerCard" key={x.id}>
       <span className="pill">{x.status}</span><h2>{x.to_team?.city} {x.to_team?.name}</h2>
       <b>{en?"Interest":"Interesse"} {x.interest_score}/100 · Fairness {x.fairness_score}/100</b>
       <p>{x.package_summary}</p><small>{x.rationale}</small>
-    </div>)}</div>
+    </div>)}</div>:<div className="emptyState compact">{en?"No formal offer yet. Formal packages can appear after your market heats up.":"Noch kein formelles Angebot. Konkrete Pakete können erscheinen, sobald dein Markt heiß genug ist."}</div>}
 
     <div className="sectionHead"><h2>{t(lang,"leagueInterest")}</h2></div>
-    <div className="statGrid">{(i||[]).map((x:any)=><div className="statCard" key={x.id}><span>{x.teams?.abbreviation}</span><strong>{x.interest_score}</strong><small>{x.rationale}</small></div>)}</div>
+    {(i||[]).length?<div className="statGrid">{(i||[]).map((x:any)=><div className="statCard" key={x.id}><span>{x.teams?.abbreviation}</span><strong>{x.interest_score}</strong><small>{x.rationale}</small></div>)}</div>:<div className="emptyState compact">{en?"No scouting interest has surfaced yet. It begins after the first few career games.":"Noch kein sichtbares Scouting-Interesse. Es beginnt jetzt nach den ersten Karrierespielen und wächst mit Leistung, Hype und Star-Power."}</div>}
   </>;
 }
