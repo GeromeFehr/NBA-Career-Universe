@@ -47,14 +47,17 @@ export async function buildGameContext(statId:string) {
     .select("*,career_profiles(*,universes(language)),games(*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)),team:teams(*)")
     .eq("id",statId).single();
   if (error || !stat) throw new Error("Stat line not found");
-  const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame}] = await Promise.all([
+  const [{data:notables},{data:recent},{data:arcs},{data:injuries},{data:interest},{data:allStats},{data:universeGame},{data:personas},{data:rivalries},{data:rep}] = await Promise.all([
     client.from("game_notables").select("*").eq("career_id",stat.career_id).eq("game_id",stat.game_id),
     client.from("media_posts").select("outlet,kind,headline,body,tone").eq("career_id",stat.career_id).eq("language",stat.career_profiles?.universes?.language==="en"?"en":"de").order("created_at",{ascending:false}).limit(18),
     client.from("story_arcs").select("*").eq("career_id",stat.career_id).eq("status","active").limit(8),
     client.from("injuries").select("*").eq("career_id",stat.career_id).order("start_date",{ascending:false}).limit(5),
     client.from("trade_interest").select("*,teams(*)").eq("career_id",stat.career_id).order("interest_score",{ascending:false}).limit(8),
     client.from("player_game_stats").select("*").eq("career_id",stat.career_id).order("created_at"),
-    client.from("universe_games").select("*").eq("universe_id",stat.career_profiles.universe_id).eq("game_id",stat.game_id).maybeSingle()
+    client.from("universe_games").select("*").eq("universe_id",stat.career_profiles.universe_id).eq("game_id",stat.game_id).maybeSingle(),
+    client.from("persona_memories").select("*").eq("career_id",stat.career_id).eq("language",stat.career_profiles?.universes?.language==="en"?"en":"de"),
+    client.from("rivalries").select("*,teams:opponent_team_id(*)").eq("career_id",stat.career_id).order("heat",{ascending:false}).limit(6),
+    client.from("universe_reputation").select("*").eq("career_id",stat.career_id).maybeSingle()
   ]);
   const g={...stat.games,status:universeGame?.status||"scheduled",home_score:universeGame?.home_score??null,away_score:universeGame?.away_score??null};
   const myTeam=stat.team_id;
@@ -62,7 +65,7 @@ export async function buildGameContext(statId:string) {
     (g.home_team_id===myTeam && Number(g.home_score)>Number(g.away_score)) ||
     (g.away_team_id===myTeam && Number(g.away_score)>Number(g.home_score))
   );
-  return {stat,career:stat.career_profiles,game:g,notables:notables||[],recent:recent||[],arcs:arcs||[],injuries:injuries||[],interest:interest||[],history:allStats||[],result:g.status==="completed"?(won?"win":"loss"):"unknown"};
+  return {stat,career:stat.career_profiles,game:g,notables:notables||[],recent:recent||[],arcs:arcs||[],injuries:injuries||[],interest:interest||[],history:allStats||[],personas:personas||[],rivalries:rivalries||[],reputation:rep||null,result:g.status==="completed"?(won?"win":"loss"):"unknown"};
 }
 
 export async function generateGameMedia(statId:string) {
@@ -95,7 +98,7 @@ If the player is a 99 OVR rookie, coverage may treat that as extraordinary, but 
 Return JSON only.
 
 CANON:
-${JSON.stringify({game:ctx.game,stat:ctx.stat,career:ctx.career,notables:ctx.notables,result:ctx.result,activeStoryArcs:ctx.arcs,injuries:ctx.injuries,tradeInterest:ctx.interest})}
+${JSON.stringify({game:ctx.game,stat:ctx.stat,career:ctx.career,notables:ctx.notables,result:ctx.result,activeStoryArcs:ctx.arcs,injuries:ctx.injuries,tradeInterest:ctx.interest,personaMemories:ctx.personas,rivalries:ctx.rivalries,reputation:ctx.reputation})}
 
 RECENT COVERAGE TO AVOID COPYING:
 ${JSON.stringify(ctx.recent)}
