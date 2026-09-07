@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { pageContext, mergeUniverseResults } from "@/lib/universe";
+import { pageContext, loadCareerSchedule } from "@/lib/universe";
 import { summarizeStats } from "@/lib/stats";
 import StatCard from "@/components/StatCard";
 import MediaCard from "@/components/MediaCard";
@@ -9,17 +9,15 @@ export const dynamic="force-dynamic";
 
 export default async function Home(){
   const {client,career,universe}=await pageContext();
-  const [{data:stats},{data:media},{data:games},{data:results},{data:arcs},{data:milestones}] = await Promise.all([
+  const [{data:stats},{data:media},careerGames,{data:arcs},{data:milestones}] = await Promise.all([
     client.from("player_game_stats").select("*").eq("career_id",career.id).order("created_at"),
     client.from("media_posts").select("*").eq("career_id",career.id).order("created_at",{ascending:false}).limit(10),
-    client.from("games").select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)").gte("game_day",career.universe_date).order("game_date").limit(160),
-    client.from("universe_games").select("*").eq("universe_id",universe.id),
+    loadCareerSchedule(client,career,universe),
     client.from("story_arcs").select("*").eq("career_id",career.id).eq("status","active").limit(6),
     client.from("milestones").select("*").eq("career_id",career.id).order("achieved_at",{ascending:false}).limit(6)
   ]);
   const s=summarizeStats(stats||[]);
-  const merged=mergeUniverseResults(games||[],results||[]);
-  const next=merged.find((g:any)=>(g.home_team_id===career.current_team_id||g.away_team_id===career.current_team_id)&&g.status!=="completed");
+  const next=careerGames.find((g:any)=>g.status!=="completed"&&g.game_day>=career.universe_date);
 
   return <>
     <section className="hero">
