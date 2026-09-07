@@ -38,3 +38,22 @@ input,select,textarea,button{font:inherit;color:white;background:#0a0f18;border:
 .quickEntry{scroll-margin-top:90px}
 .inlineNotice{position:static;margin:12px 0 16px}
 .gameOverview{overflow:hidden}
+
+.logoBadge{position:relative;overflow:hidden;padding:0;background:#111827}
+.logoBadge .logoFallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#dbe4f4}
+.logoBadge img{position:relative;z-index:2;width:82%;height:82%;object-fit:contain;display:block;filter:drop-shadow(0 4px 10px #0007)}
+.competitionBadge{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:11px;background:#f8fafc;border:1px solid #ffffff2a;overflow:hidden;flex:0 0 auto}
+.competitionBadge.small{width:30px;height:30px;border-radius:8px}
+.competitionBadge img{width:88%;height:88%;object-fit:contain;display:block}
+.competitionCell{display:flex;align-items:center;gap:8px}
+.gameMetaLogo{display:flex;justify-content:center;align-items:center;gap:9px}
+.scheduleCount{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.scheduleCount strong{font-size:22px;color:#f4f7ff}
+.scheduleCount span{font-size:12px;color:var(--muted)}
+.screenshotInline{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;padding:16px;border:1px solid #28364f;border-radius:16px;background:#0b111b;margin:14px 0 20px}
+.screenshotInline b{font-size:15px}
+.screenshotInline p{margin:6px 0 0}
+.uploadButton{margin:0;display:inline-flex;align-items:center;justify-content:center;min-width:210px;padding:12px 16px;border-radius:12px;background:linear-gradient(135deg,#2d3a54,#182235);color:white;font-weight:900;cursor:pointer;border:1px solid #405170}
+.uploadButton input{display:none}
+.footer a{color:#9aa8c0;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:700px){.screenshotInline{grid-template-columns:1fr}.uploadButton{width:100%}.scheduleCount{align-items:flex-start}}
