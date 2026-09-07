@@ -1,6 +1,7 @@
 import {pageContext} from "@/lib/universe";
 import {langOf,t} from "@/lib/i18n";
 import LanguageSwitch from "@/components/LanguageSwitch";
+import AiUsageMeter from "@/components/AiUsageMeter";
 
 export const dynamic="force-dynamic";
 export default async function Page(){
@@ -8,6 +9,7 @@ export default async function Page(){
  const lang=langOf(universe);
  return <>
   <div className="sectionHead"><div><span className="eyebrow">SYSTEM</span><h1>{t(lang,"setup")}</h1></div></div>
+  <AiUsageMeter language={lang}/>
   <div className="grid2">
    <div className="card"><h2>{t(lang,"language")}</h2><p>{lang==="en"?"Choose the language for the whole universe. New AI content is generated in the selected language.":"Wähle die Sprache für das gesamte Universe. Neue KI-Inhalte werden in der gewählten Sprache erzeugt."}</p><LanguageSwitch universeId={universe.id} language={lang}/></div>
    <div className="card"><h2>{t(lang,"account")}</h2><p>{user.email}</p><p className="muted">{lang==="en"?"Supabase Auth · separate sessions and users.":"Supabase Auth · getrennte Sessions und Benutzer."}</p></div>
