@@ -4,10 +4,29 @@ import {requireAdmin,apiStatus} from "@/lib/auth";
 import {normalizeAbbr} from "@/lib/team-map";
 import {logAiUsage} from "@/lib/ai-usage";
 
-export const maxDuration=26;
+export const maxDuration=35;
 
 function n(v:any){return v==null||v===""?null:Number(v)}
 function isoDay(v:any){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||""))?String(v):null}
+
+function parseScanOutput(response:any){
+  const raw=String(response?.output_text||"").trim();
+  if(response?.status==="incomplete"){
+    const reason=String(response?.incomplete_details?.reason||"unknown");
+    throw new Error("SCAN_INCOMPLETE:"+reason);
+  }
+  if(!raw)throw new Error("SCAN_EMPTY");
+  try{return JSON.parse(raw)}
+  catch{
+    console.error("Malformed screenshot structured output",{
+      status:response?.status,
+      incomplete:response?.incomplete_details,
+      length:raw.length,
+      preview:raw.slice(0,240)
+    });
+    throw new Error("SCAN_INVALID_JSON");
+  }
+}
 
 export async function POST(req:Request){
   try{
@@ -34,12 +53,7 @@ export async function POST(req:Request){
 Extract only visible values. Never guess. Use null for missing values. Return team abbreviations when visible. If home/away orientation is unclear set orientation_confident=false. Find the controlled player or a close shortened form. Give conservative 0-100 confidence for every field; 0 if not visible. Date is null unless actually visible.`;
 
     const inputContent:any[]=[{type:"input_text",text:prompt},...images.map((image_url:string)=>({type:"input_image",image_url,detail:precision}))];
-    const response=await ai.responses.create({
-      model:modelName,
-      store:false,
-      max_output_tokens:900,
-      input:[{role:"user",content:inputContent}],
-      text:{format:{
+    const responseFormat={format:{
         type:"json_schema",name:"nba2k_scoreboard_scan",strict:true,
         schema:{
           type:"object",additionalProperties:false,
@@ -70,25 +84,56 @@ Extract only visible values. Never guess. Use null for missing values. Return te
             notes:{type:"array",items:{type:"string"}},confidence:{type:"integer",minimum:0,maximum:100}
           }
         }
-      }}
-    });
+      }} as any;
 
-    await logAiUsage({
-      careerId:career.id,
-      universeId:universe.id,
-      gameId:b.expectedGameId||null,
-      feature:"screenshot_scan",
-      model:modelName,
-      usage:response.usage as any,
-      meta:{
-        seasonId:universe.current_season_id,
-        imageCount:images.length,
-        precision,
-        imageMeta:Array.isArray(b.imageMeta)?b.imageMeta.slice(0,2):[]
+    const runScan=async(attempt:number,maxOutputTokens:number)=>{
+      const response=await ai.responses.create({
+        model:modelName,
+        store:false,
+        reasoning:{effort:"none"},
+        max_output_tokens:maxOutputTokens,
+        input:[{role:"user",content:inputContent}],
+        text:responseFormat
+      });
+
+      await logAiUsage({
+        careerId:career.id,
+        universeId:universe.id,
+        gameId:b.expectedGameId||null,
+        feature:"screenshot_scan",
+        model:modelName,
+        usage:response.usage as any,
+        meta:{
+          seasonId:universe.current_season_id,
+          imageCount:images.length,
+          precision,
+          attempt,
+          imageMeta:Array.isArray(b.imageMeta)?b.imageMeta.slice(0,2):[]
+        }
+      });
+      return response;
+    };
+
+    let response=await runScan(1,1600);
+    let scan:any;
+    try{
+      scan=parseScanOutput(response);
+    }catch(parseError:any){
+      const retryable=["SCAN_INVALID_JSON","SCAN_EMPTY"].includes(String(parseError?.message||""))
+        || String(parseError?.message||"").startsWith("SCAN_INCOMPLETE:");
+      if(!retryable)throw parseError;
+
+      // Rare reliability fallback: one automatic retry only when the model output
+      // was cut off or malformed. Normal scans still use a single cheap request.
+      response=await runScan(2,2400);
+      try{
+        scan=parseScanOutput(response);
+      }catch{
+        throw new Error(universe.language==="en"
+          ?"The screenshot analysis returned incomplete structured data twice. Please retry the scan."
+          :"Die Screenshot-Analyse hat zweimal unvollständige strukturierte Daten geliefert. Bitte den Scan erneut starten.");
       }
-    });
-
-    const scan=JSON.parse(response.output_text);
+    }
     const teams=[scan.home_team,scan.away_team,scan.team_a,scan.team_b].filter(Boolean).map((x:string)=>normalizeAbbr(x));
     const pair=Array.from(new Set(teams)).slice(0,2);
     const date=isoDay(scan.game_date);
