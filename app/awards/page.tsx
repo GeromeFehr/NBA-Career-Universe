@@ -6,8 +6,8 @@ export default async function Page(){
  const {client,career,universe}=await pageContext();
  const lang=langOf(universe);
  const [{data:a},{data:m}]=await Promise.all([
-  client.from("award_snapshots").select("*").eq("career_id",career.id).order("as_of_date",{ascending:false}),
-  client.from("milestones").select("*").eq("career_id",career.id).order("achieved_at",{ascending:false})
+  client.from("award_snapshots").select("*").eq("career_id",career.id).eq("language",lang).order("as_of_date",{ascending:false}),
+  client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false})
  ]);
  const latest=new Map<string,any>();for(const x of a||[])if(!latest.has(x.award))latest.set(x.award,x);
  return <><div className="sectionHead"><div><span className="eyebrow">RACE WATCH · {universe.name}</span><h1>{lang==="en"?"Awards & Records":"Awards & Rekorde"}</h1></div></div>
