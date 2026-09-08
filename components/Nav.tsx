@@ -2,9 +2,11 @@
 import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {useEffect,useRef,useState} from "react";
+import ThemeToggle from "@/components/ThemeToggle";
+import type {Theme} from "@/lib/theme";
 import type {AppLanguage} from "@/lib/i18n";
 
-export default function Nav({language="de",signedIn=false,universeName,team}: {language?:AppLanguage;signedIn?:boolean;universeName?:string;team?:string}) {
+export default function Nav({language="de",signedIn=false,universeName,team,initialTheme="light"}: {initialTheme?:Theme;language?:AppLanguage;signedIn?:boolean;universeName?:string;team?:string}) {
   const en=language==="en",path=usePathname();
   const [open,setOpen]=useState(false);
   const dialog=useRef<HTMLDialogElement>(null);
@@ -29,7 +31,7 @@ export default function Nav({language="de",signedIn=false,universeName,team}: {l
     <header className="masthead">
       <div className="mastheadTop"><Link href={signedIn?"/universes":"/login"} className="edition">{universeName||"MyNBA"}{team&&<span> · {team}</span>}</Link><span>{en?"Your career journal":"Dein Karrierejournal"}</span></div>
       <div className="mastheadMain"><Link className="brand" href={signedIn?"/":"/login"} aria-label="Career Universe"><span>CAREER</span><span className="brandSlash">/</span><span>UNIVERSE</span></Link>
-        {signedIn?<button ref={toggle} className="menuToggle" aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(true)}><span className="menuGlyph" aria-hidden="true">☰</span>{en?"Menu":"Menü"}</button>:<Link className="textLink" href={"/login?lang="+language}>{en?"Sign in":"Anmelden"} →</Link>}
+        <div className="mastheadActions"><ThemeToggle initialTheme={initialTheme} language={language}/>{signedIn?<button ref={toggle} className="menuToggle" aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(true)}><span className="menuGlyph" aria-hidden="true">☰</span>{en?"Menu":"Menü"}</button>:<Link className="textLink" href={"/login?lang="+language}>{en?"Sign in":"Anmelden"} →</Link>}</div>
       </div>
       {signedIn&&<nav className="primaryNav" aria-label={en?"Main navigation":"Hauptnavigation"}>{primary.map(([href,title])=><Link href={href} key={href} aria-current={active(href)?"page":undefined}>{title}</Link>)}<Link className="navEntry" href="/admin#game-entry">{en?"Enter game":"Spiel eintragen"}<span aria-hidden="true"> +</span></Link></nav>}
     </header>

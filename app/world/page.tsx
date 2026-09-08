@@ -1,3 +1,5 @@
+import {checked} from "@/lib/data";
+import PostgameGradeCard from "@/components/PostgameGradeCard";
 import {label,prose} from "@/lib/labels";
 import {pageContext} from "@/lib/universe";
 import {langOf} from "@/lib/i18n";
@@ -15,7 +17,7 @@ function arrow(d:string){return d==="up"?"↑":d==="down"?"↓":"→"}
 export default async function Page(){
   const {client,career,universe}=await pageContext();
   const lang=langOf(universe),en=lang==="en";
-  const [{data:rep},{data:rivalries},{data:personas},{data:arcs},{data:goals},{data:records},{data:fans},{data:legacy},{data:grades},{data:recaps},trends]=await Promise.all([
+  const [{data:rep},{data:rivalries},{data:personas},{data:arcs},{data:goals},{data:records},{data:fans},{data:legacy},grades,{data:recaps},trends]=await Promise.all([
     client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle(),
     client.from("rivalries").select("*,team:opponent_team_id(*)").eq("career_id",career.id).order("heat",{ascending:false}),
     client.from("persona_memories").select("*").eq("career_id",career.id).eq("language",lang).order("updated_at",{ascending:false}),
@@ -24,10 +26,12 @@ export default async function Page(){
     client.from("career_records").select("*").eq("career_id",career.id).eq("language",lang).order("scope").order("category"),
     client.from("fanbase_metrics").select("*,team:team_id(*)").eq("career_id",career.id).order("approval",{ascending:false}),
     client.from("legacy_scores").select("*").eq("career_id",career.id).maybeSingle(),
-    client.from("postgame_grades").select("*").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(5),
+    client.from("postgame_grades").select("*,game:games(game_day,home_team_id,away_team_id,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*))").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(5).then(checked),
     client.from("season_recaps").select("*,season:season_id(*)").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}),
     calculateTrends(career.id,lang)
   ]);
+  const gradeStats=grades?.length?checked(await client.from("player_game_stats").select("game_id,team_id").eq("career_id",career.id).in("game_id",grades.map(g=>g.game_id))):[];
+  const gradeTeams=new Map((gradeStats||[]).map(s=>[s.game_id,s.team_id]));
   const r=rep||{league_reputation:50,star_power:50,media_hype:50,fan_approval:50,expert_respect:50,hater_heat:35,cultural_impact:35};
   const trendRows:any[]=[
     ["PPG",trends.points],["RPG",trends.rebounds],["APG",trends.assists],["SPG",trends.steals],["BPG",trends.blocks],["TO",trends.turnovers]
@@ -108,7 +112,7 @@ export default async function Page(){
     <div className="tableWrap"><table><thead><tr><th>{en?"Scope":"Bereich"}</th><th>{en?"Record":"Rekord"}</th><th>{en?"Value":"Wert"}</th></tr></thead><tbody>{(records||[]).map((x:any)=><tr key={x.id}><td>{label(x.scope,lang)}</td><td>{x.label}</td><td><b>{x.value}</b></td></tr>)}</tbody></table></div>
 
     <div className="sectionHead"><div><h2>{en?"Recent Postgame Grades":"Letzte Postgame-Noten"}</h2></div></div>
-    <div className="offerGrid">{(grades||[]).map((g:any)=><div className="card gradeCard" key={g.id}><strong className="gradeLetter">{g.overall_grade}</strong><p className="muted">{g.summary}</p><small>SC {g.scoring} · PL {g.playmaking} · DEF {g.defense} · EFF {g.efficiency} · DISC {g.discipline}</small></div>)}</div>
+    <div className="offerGrid">{(grades||[]).map(grade=><PostgameGradeCard key={grade.id} grade={grade} teamId={gradeTeams.get(grade.game_id)} language={lang}/>)}</div>
 
     {(recaps||[]).length>0&&<><div className="sectionHead"><div><h2>{en?"Season Recaps":"Saison-Rückblicke"}</h2></div></div><div className="mediaStack">{(recaps||[]).map((x:any)=><div className="panel" key={x.id}><span className="eyebrow">{x.season?.label}</span><h2>{x.title}</h2><p className="muted">{x.summary}</p></div>)}</div></>}
   </>;

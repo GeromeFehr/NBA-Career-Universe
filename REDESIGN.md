@@ -46,3 +46,10 @@ All new RPCs are security invoker and callable only by the server service role, 
 The primary navigation has five areas: Today, Games, Career, Media and Career World. Reports, Social and Press share one Media entry and local section links. Career contains the game log, career highs, chronology, trophies, award races and season archive. Award standings and trophies keep their original records and editing flows; old `/awards` and `/trophy-room` links redirect to their Career sections. Pregame is reached from the schedule. Agent contracts, trades, playoffs and management remain available in the menu.
 
 Career game logs resolve the opponent from the appearance's historical `team_id` and the game's home/away teams, with logo and venue. The current career team is never used to reinterpret a past game.
+
+
+## Theme and postgame context
+
+The header offers Light/Dark to every visitor, including login and public career pages. The explicit preference is stored in the `nba_theme` cookie for one year and is read by the root layout before rendering. Switching updates the document immediately; navigation and reloads keep the selected palette. The preference belongs to the browser, not the shared universe. Semantic colors cover native forms, tables, messages, menus and buttons. Broadcast scoreboards remain dark in both modes; printing uses the light palette.
+
+Recent postgame grades include the game's date and opponent, with home/away derived from that career's stored appearance. A single batched stat lookup covers all five grades and stays scoped to the active career. If a historical appearance is missing, the full matchup is shown rather than assuming the current team.
