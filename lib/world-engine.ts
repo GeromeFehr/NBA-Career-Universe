@@ -245,7 +245,7 @@ async function updatePersonas(career:any,game:any,stat:any,grade:any,lang:Lang){
       :`Feiert den letzten Boxscore: ${stat.points} PTS, ${stat.rebounds} REB, ${stat.assists} AST.`;}
     else if(p.base==="technical"){sentiment=25;stance="analytical";memory=lang==="en"
       ?`Tracking efficiency (${grade.efficiency}/100), playmaking (${grade.playmaking}/100) and defensive reads (${grade.defense}/100).`
-      :`Beobachtet Effizienz (${grade.efficiency}/100), Playmaking (${grade.playmaking}/100) und defensive Reads (${grade.defense}/100).`;}
+      :`Beobachtet Efficiency (${grade.efficiency}/100), Playmaking (${grade.playmaking}/100) und defensive Reads (${grade.defense}/100).`;}
     else{sentiment=35;stance="balanced";memory=lang==="en"
       ?`Latest performance graded ${grade.overall_grade}. Keeps the long-term view.`
       :`Letzte Leistung mit ${grade.overall_grade} bewertet. Behält die langfristige Perspektive.`;}
@@ -485,7 +485,7 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
   if(Number(stat.fga)>=24&&fg<.45)add("criticism",88,"skeptical","skeptical",
     `${stat.fga} Würfe bei ${Math.round(fg*100)} Prozent: Warst du heute zu sehr im Forcieren-Modus?`,
     `${stat.fga} shots at ${Math.round(fg*100)} percent: were you forcing the issue too much tonight?`,
-    "Hohe Usage bei schwieriger Effizienz.",
+    "Hohe Usage bei schwieriger Efficiency.",
     "High usage on difficult efficiency.");
 
   if(prev.length&&Number(stat.points)>prevMax("points"))add("hype",91,"big","record",
@@ -629,7 +629,7 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
   const grade=gradeGame(stat);
   const summary=stat.appearance_status!=="played"?label(stat.appearance_status,lang):lang==="en"
     ?`Overall ${grade.overall_grade}. Scoring ${grade.scoring}/100, playmaking ${grade.playmaking}/100, defense ${grade.defense}/100, efficiency ${grade.efficiency}/100, discipline ${grade.discipline}/100.`
-    :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Effizienz ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
+    :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Efficiency ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
   await client.from("postgame_grades").upsert({
     career_id:career.id,game_id:game.id,language:lang,overall_grade:grade.overall_grade,
     scoring:grade.scoring,playmaking:grade.playmaking,defense:grade.defense,efficiency:grade.efficiency,discipline:grade.discipline,summary
@@ -656,7 +656,7 @@ export async function refreshDerivedAfterStatEdit({career,universe,game,stat}:{c
   const grade=gradeGame(stat);
   const summary=stat.appearance_status!=="played"?label(stat.appearance_status,lang):lang==="en"
     ?`Overall ${grade.overall_grade}. Scoring ${grade.scoring}/100, playmaking ${grade.playmaking}/100, defense ${grade.defense}/100, efficiency ${grade.efficiency}/100, discipline ${grade.discipline}/100.`
-    :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Effizienz ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
+    :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Efficiency ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
 
   // Only deterministic derivatives are corrected. Narrative state, reputation,
   // rivalries, interviews, trade market and media are deliberately untouched.

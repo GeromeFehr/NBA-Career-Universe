@@ -1,3 +1,4 @@
+import {basketballTerms} from "@/lib/basketball-terms";
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import {gameOpponent} from "@/lib/game-opponent";
@@ -23,7 +24,7 @@ export default function PostgameGradeCard({grade, teamId, language}: {grade: Gra
       </span>}
     </Link>
     <strong className="gradeLetter">{grade.overall_grade}</strong>
-    <p className="muted">{grade.summary}</p>
+    <p className="muted">{basketballTerms(grade.summary)}</p>
     <small>SC {grade.scoring} · PL {grade.playmaking} · DEF {grade.defense} · EFF {grade.efficiency} · DISC {grade.discipline}</small>
   </article>;
 }
