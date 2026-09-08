@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
+import DraftFields from "@/components/DraftFields";
 import QuickGameEntry from "@/components/QuickGameEntry";
 import StatusMessage from "@/components/StatusMessage";
 import {label,stageLabel} from "@/lib/labels";
@@ -120,7 +121,7 @@ export default function AdminConsole({language,initialData}:{language:"de"|"en";
         e.preventDefault();const f=new FormData(e.currentTarget);
         run(()=>api("/api/admin/profile",{
           playerName:f.get("playerName"),position:f.get("position"),overall:f.get("overall"),
-          jerseyNumber:f.get("jerseyNumber"),draftYear:f.get("draftYear"),draftRound:1,draftPick:f.get("draftPick")
+          jerseyNumber:f.get("jerseyNumber"),draftYear:f.get("draftYear"),draftRound:f.get("draftRound"),draftPick:f.get("draftPick"),draftStatus:f.get("draftStatus"),rookieSeasonId:f.get("rookieSeasonId")
         }),tx("Spielerprofil aktualisiert","Player profile updated")).catch(()=>{});
       }}>
         <div className="grid3">
@@ -128,12 +129,11 @@ export default function AdminConsole({language,initialData}:{language:"de"|"en";
           <label>Position<input name="position" defaultValue={career.position||""}/></label>
           <label>OVR<input name="overall" type="number" min="25" max="99" defaultValue={career.overall}/></label>
         </div>
-        <div className="grid3">
+        <div className="grid2">
           <label>{tx("Trikotnummer","Jersey number")}<input name="jerseyNumber" type="number" defaultValue={career.jersey_number??""}/></label>
-          <label>{tx("Draft Jahr","Draft year")}<input name="draftYear" type="number" defaultValue={career.draft_year??""}/></label>
-          <label>Pick<input name="draftPick" type="number" defaultValue={career.draft_pick??""}/></label>
+          <label>{tx("Rookie-Saison","Rookie season")}<select name="rookieSeasonId" defaultValue={career.rookie_season_id||""}><option value="">{tx("Nicht bekannt","Unknown")}</option>{seasons.map((s:any)=><option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
         </div>
-        <button disabled={busy}>{tx("Profil speichern","Save profile")}</button>
+        <DraftFields key={`${career.id}:${career.updated_at}`} career={career} language={language}/><button disabled={busy}>{tx("Profil speichern","Save profile")}</button>
       </form>
     </section>
 

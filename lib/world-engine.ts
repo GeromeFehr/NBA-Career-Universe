@@ -1,3 +1,5 @@
+import {playerBackground} from "@/lib/player-background";
+import {draftLabel} from "@/lib/career-background";
 import {db} from "@/lib/db";
 import {fetchPaged,loadCareerSchedule} from "@/lib/universe";
 import {jsonObject,checked} from "@/lib/data";
@@ -290,13 +292,14 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
   }
 
   const opponentId=game.home_team_id===stat.team_id?game.away_team_id:game.home_team_id;
-  const [{data:opponent},{data:recentInterviews},{data:rep},{data:previous},{data:rivalry},{data:tradeSaga}]=await Promise.all([
+  const [{data:opponent},{data:recentInterviews},{data:rep},{data:previous},{data:rivalry},{data:tradeSaga},background]=await Promise.all([
     client.from("teams").select("*").eq("id",opponentId).maybeSingle(),
     client.from("interviews").select("topic,question").eq("career_id",career.id).eq("language",lang).order("created_at",{ascending:false}).limit(8),
     client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle(),
-    client.from("player_game_stats").select("*").eq("career_id",career.id).neq("game_id",game.id).eq("appearance_status","played").order("created_at",{ascending:false}).limit(20),
+    client.from("player_game_stats").select("*,games!inner(game_date)").eq("career_id",career.id).eq("appearance_status","played").lt("games.game_date",game.game_date).order("created_at",{ascending:false}).limit(20),
     client.from("rivalries").select("*").eq("career_id",career.id).eq("opponent_team_id",opponentId).maybeSingle(),
-    client.from("trade_sagas").select("*,team:target_team_id(*)").eq("career_id",career.id).eq("language",lang).eq("status","active").order("heat",{ascending:false}).limit(1).maybeSingle()
+    client.from("trade_sagas").select("*,team:target_team_id(*)").eq("career_id",career.id).eq("language",lang).eq("status","active").order("heat",{ascending:false}).limit(1).maybeSingle(),
+    playerBackground(career,game.season_id||null)
   ]);
 
   const en=lang==="en";
@@ -308,13 +311,23 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
   const tripleCats=[stat.points,stat.rebounds,stat.assists,stat.steals,stat.blocks].filter((x:any)=>Number(x)>=10).length;
   const prev=previous||[];
   const prevMax=(k:string)=>prev.reduce((m:number,r:any)=>Math.max(m,Number(r[k]||0)),0);
-  const gameNo=prev.length+1;
+
   const recentTopics=new Set((recentInterviews||[]).map((x:any)=>String(x.topic||"")));
   const teamName=opponent?opponent.city+" "+opponent.name:(en?"the opponent":"den Gegner");
 
   const style=(de:string,enText:string)=>en?enText:de;
   const opts=(topic:string)=>{
     const common:any={
+      draft:[
+        {id:"drive",style:style("Antrieb","Motivation"),label:style("Mein Weg motiviert mich. Aber heute zählt, was ich auf dem Court mache.","My path motivates me. But today, what I do on the court is what matters."),impact:{fans:4,expert:3}},
+        {id:"prove",style:style("Selbstbewusst","Confident"),label:style("Ich will, dass man mich an meiner Leistung misst, nicht an meiner Draftposition.","I want to be judged by my performance, not my draft position."),impact:{star:3,hype:3}},
+        {id:"team",style:style("Das Team zuerst","Team first"),label:style("Wir haben alle unseren eigenen Weg hierher. Jetzt geht es um unsere gemeinsamen Ziele.","We all took our own path here. Now it is about our shared goals."),impact:{fans:5,expert:2}}
+      ],
+      development:[
+        {id:"reads",style:style("Spielverständnis","Reading the game"),label:style("Ich arbeite daran, Situationen früher zu erkennen und bessere Entscheidungen zu treffen.","I am working on reading situations earlier and making better decisions."),impact:{expert:5}},
+        {id:"routine",style:style("Konstanz","Consistency"),label:style("Meine tägliche Vorbereitung ist der Schlüssel. Ich will meine Leistung verlässlicher abrufen.","My daily preparation is the key. I want to deliver more consistently."),impact:{expert:4,fans:2}},
+        {id:"confidence",style:style("Vertrauen","Confidence"),label:style("Ich vertraue meinem Spiel. Gleichzeitig gibt es jeden Tag etwas, das ich verbessern kann.","I trust my game. At the same time, there is something I can improve every day."),impact:{star:3,expert:3}}
+      ],
       hype:[
         {id:"confident",style:style("Selbstbewusst","Confident"),label:style("Wenn sie reden wollen, sollen sie reden. Ich weiß, was ich kann.","If they want to talk, let them talk. I know what I can do."),impact:{hype:5,star:3,hater:5}},
         {id:"team",style:style("Das Team zuerst","Team first"),label:style("Der Hype ist egal. Entscheidend ist, dass wir gewinnen.","The hype does not matter. What matters is that we win."),impact:{fans:5,expert:3,hype:-2}},
@@ -493,11 +506,28 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
     `Trade-Saga Heat ${tradeSaga.heat||0}/100.`,
     `Trade saga heat ${tradeSaga.heat||0}/100.`);
 
-  if(gameNo<=5)add("hype",84,"big","rookie",
-    `Du bist erst bei NBA-Spiel Nummer ${gameNo}. Wie schnell fühlt sich das alles für dich gerade an?`,
-    `This is only NBA game number ${gameNo}. How fast does all of this feel right now?`,
-    "Frühe Phase der Rookie-Saison.",
-    "Early stage of the rookie season.");
+  if(background.is_rookie===true)add("development",84,"big","rookie",
+    "Du steckst in deiner Rookie-Saison. Welche Umstellung auf NBA-Basketball beschäftigt dich gerade am meisten?",
+    "You are in your rookie season. Which adjustment to NBA basketball is on your mind most right now?",
+    `Rookie-Saison ${background.rookie_season}.`,
+    `Rookie season ${background.rookie_season}.`);
+  else if(background.career_season===2)add("development",84,"big","development",
+    "Dein zweites NBA-Jahr: Was gehst du heute anders an als in deiner Rookie-Saison?",
+    "Your second NBA season: what do you approach differently compared with your rookie year?",
+    "Die zweite NBA-Saison.", "The second NBA season.");
+  else if(background.career_season && background.career_season>2)add("development",82,"big","development",
+    `Du bist in deiner ${background.career_season}. NBA-Saison. Wo merkst du heute am deutlichsten deine Erfahrung?`,
+    `This is your NBA season ${background.career_season}. Where did your experience make the biggest difference tonight?`,
+    "Entwicklung über mehrere NBA-Saisons.", "Development across multiple NBA seasons.");
+
+  if(background.draft_status==="undrafted")add("draft",85,"local","background",
+    "Du hast es ohne Draft-Auswahl in die NBA geschafft. Wie prägt dieser Weg deinen Umgang mit solchen Spielen?",
+    "You reached the NBA without being drafted. How does that path shape your approach to games like this?",
+    draftLabel(background,"de"), draftLabel(background,"en"));
+  else if(background.draft_status==="drafted")add("draft",85,"local","background",
+    `Du wurdest an Position ${background.draft_pick} gedraftet. Welche Rolle spielt diese Zahl heute noch für dich?`,
+    `You were drafted with pick ${background.draft_pick}. How much does that number still matter to you?`,
+    draftLabel(background,"de"), draftLabel(background,"en"));
 
   if(margin>=20&&result==="win")add("generic",81,"local","team",
     `Ein deutlicher Sieg gegen ${teamName}: Was hat euch heute so früh Kontrolle über das Spiel gegeben?`,

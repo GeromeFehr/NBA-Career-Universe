@@ -14,7 +14,7 @@ const labels: Record<string, [string, string]> = {
   injured:["Verletzt","Injured"], "day-to-day":["Von Tag zu Tag","Day to day"], minor:["Leicht","Minor"], moderate:["Mittel","Moderate"], major:["Schwer","Major"],
   career:["Karriere","Career"], season:["Saison","Season"], playoffs:["Playoffs","Playoffs"],
   hype:["Aufmerksamkeit","Hype"], adversity:["Rückschlag","Adversity"], performance:["Leistung","Performance"],
-  rookie_hype:["Rookie im Fokus","Rookie watch"], defense:["Verteidigung","Defense"], pressure:["Druck","Pressure"],
+  draft:["Draft-Hintergrund","Draft background"], development:["Entwicklung","Development"], rookie_hype:["Rookie im Fokus","Rookie watch"], defense:["Verteidigung","Defense"], pressure:["Druck","Pressure"],
   criticism:["Kritik","Criticism"], discipline:["Disziplin","Discipline"], efficiency:["Effizienz","Efficiency"],
   rivalry:["Rivalität","Rivalry"], trade:["Trade","Trade"], generic:["Zum Spiel","Game review"],
   game:["Spiel","Game"], debut:["Debüt","Debut"], injury:["Verletzung","Injury"], injury_return:["Rückkehr","Return"],

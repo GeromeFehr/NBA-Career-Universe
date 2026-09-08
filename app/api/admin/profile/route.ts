@@ -1,3 +1,28 @@
-import {apiFailure} from "@/lib/http";
-import {NextResponse} from "next/server";import {requireAdmin,apiStatus} from "@/lib/auth";
-export async function POST(req:Request){try{const {career,client}=await requireAdmin();const b=await req.json();const payload:any={player_name:String(b.playerName||"").trim(),position:String(b.position||"").trim()||null,overall:Number(b.overall||75),draft_year:b.draftYear?Number(b.draftYear):null,draft_round:b.draftRound?Number(b.draftRound):null,draft_pick:b.draftPick?Number(b.draftPick):null,jersey_number:b.jerseyNumber!==""&&b.jerseyNumber!=null?Number(b.jerseyNumber):null,updated_at:new Date().toISOString()};if(!payload.player_name)return NextResponse.json({error:"Spielername fehlt"},{status:400});if(payload.overall<25||payload.overall>99)return NextResponse.json({error:"OVR muss zwischen 25 und 99 liegen"},{status:400});const {error}=await client.from("career_profiles").update(payload).eq("id",career.id);if(error)throw error;return NextResponse.json({ok:true})}catch(e){return apiFailure(e)}}
+import {NextResponse} from "next/server";
+import {requireAdmin} from "@/lib/auth";
+import {apiFailure, readJson} from "@/lib/http";
+import {parseDraftInput} from "@/lib/career-background";
+import {cleanText, finiteNumber, InputError, uuid} from "@/lib/game-input";
+import {checked} from "@/lib/data";
+
+export async function POST(req: Request) {
+  try {
+    const {career, universe, client} = await requireAdmin(), b = await readJson(req);
+    const playerName = cleanText(b.playerName, 100);
+    if (!playerName) throw new InputError("MISSING_VALUES");
+    const rookieId = b.rookieSeasonId === undefined ? career.rookie_season_id : b.rookieSeasonId ? uuid(b.rookieSeasonId) : null;
+    if (rookieId) {
+      const ids = [...new Set([rookieId, universe.current_season_id].filter((id): id is string => !!id))];
+      const seasons = checked(await client.from("seasons").select("id,start_date").in("id", ids)) || [];
+      const rookie = seasons.find(s => s.id === rookieId), active = seasons.find(s => s.id === universe.current_season_id);
+      if (!rookie || (active && rookie.start_date > active.start_date)) throw new InputError("INVALID_ROOKIE_SEASON");
+    }
+    const payload = {
+      player_name: playerName, position: cleanText(b.position, 20), overall: finiteNumber(b.overall ?? 75, 25, 99),
+      jersey_number: b.jerseyNumber == null || b.jerseyNumber === "" ? null : finiteNumber(b.jerseyNumber, 0, 99),
+      ...parseDraftInput(b), rookie_season_id: rookieId, updated_at: new Date().toISOString(),
+    };
+    checked(await client.from("career_profiles").update(payload).eq("id", career.id).select("id").single());
+    return NextResponse.json({ok: true});
+  } catch (error) { return apiFailure(error); }
+}

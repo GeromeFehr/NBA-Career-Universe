@@ -13,6 +13,7 @@ export type Game = {
 
 export type Career = {
   id: string; player_name: string; position: string | null; jersey_number: number | null;
+  draft_status: "drafted" | "undrafted" | "unknown"; rookie_season_id: string | null;
   overall: number; draft_year: number | null; draft_round: number | null; draft_pick: number | null;
   current_team_id: string | null; universe_date: string; status: string;
   current_team?: Team | null;

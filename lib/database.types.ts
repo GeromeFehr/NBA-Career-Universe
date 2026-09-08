@@ -400,6 +400,7 @@ export type Database = {
         Row: {
           created_at: string
           current_team_id: string | null
+          draft_status: string
           draft_pick: number | null
           draft_round: number | null
           draft_year: number | null
@@ -417,6 +418,7 @@ export type Database = {
         Insert: {
           created_at?: string
           current_team_id?: string | null
+          draft_status?: string
           draft_pick?: number | null
           draft_round?: number | null
           draft_year?: number | null
@@ -434,6 +436,7 @@ export type Database = {
         Update: {
           created_at?: string
           current_team_id?: string | null
+          draft_status?: string
           draft_pick?: number | null
           draft_round?: number | null
           draft_year?: number | null
