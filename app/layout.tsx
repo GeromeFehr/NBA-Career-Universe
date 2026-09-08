@@ -6,6 +6,7 @@ import Nav from "@/components/Nav";
 import {activeContext} from "@/lib/universe";
 import {currentUser} from "@/lib/auth";
 import {uiLanguage} from "@/lib/ui-language";
+export const dynamic="force-dynamic";
 export const metadata={title:{default:"Career Universe",template:"%s · Career Universe"},description:"Dein persönliches MyNBA-Karrierejournal.",icons:{icon:"/favicon.svg"}};
 export default async function RootLayout({children}:{children:React.ReactNode}) {
   const [context,user,language]=await Promise.all([activeContext(),currentUser(),uiLanguage()]);

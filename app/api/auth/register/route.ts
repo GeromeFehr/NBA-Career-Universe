@@ -1,3 +1,4 @@
+import {privateResponse} from "@/lib/private-response";
 import { NextResponse } from "next/server";
 import { authDb } from "@/lib/supabase/server";
 
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
   const displayName = String(form.get("displayName") || "").trim();
 
   if (password.length < 8) {
-    return NextResponse.redirect(new URL(`/register?error=password&lang=${lang}`, req.url), 303);
+    return privateResponse(NextResponse.redirect(new URL(`/register?error=password&lang=${lang}`, req.url), 303));
   }
 
   const supabase = await authDb();
@@ -23,8 +24,8 @@ export async function POST(req: Request) {
     }
   });
 
-  if (error) return NextResponse.redirect(new URL(`/register?error=signup&lang=${lang}`, req.url), 303);
-  if (!data.session) return NextResponse.redirect(new URL(`/login?message=confirm&lang=${lang}`, req.url), 303);
+  if (error) return privateResponse(NextResponse.redirect(new URL(`/register?error=signup&lang=${lang}`, req.url), 303));
+  if (!data.session) return privateResponse(NextResponse.redirect(new URL(`/login?message=confirm&lang=${lang}`, req.url), 303));
 
-  return NextResponse.redirect(new URL("/universes", req.url), 303);
+  return privateResponse(NextResponse.redirect(new URL("/universes", req.url), 303));
 }

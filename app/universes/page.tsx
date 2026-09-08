@@ -30,7 +30,6 @@ export default async function Page() {
     <PageHeader title={en?"My careers":"Meine Karrieren"} subtitle={en?"Every career has its own games, stories and decisions.":"Jede Karriere hat ihre eigenen Spiele, Geschichten und Entscheidungen."} actions={<form action="/api/auth/logout" method="post"><button className="secondaryButton">{en?"Sign out":"Abmelden"}</button></form>}/>
     <UniverseManager
       language={lang}
-      email={user.email||""}
       universes={universes||[]}
       legacy={legacy||[]}
       teams={teams||[]}
