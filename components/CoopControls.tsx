@@ -1,0 +1,33 @@
+"use client";
+import {useRef,useState} from "react";
+import {useRouter} from "next/navigation";
+import StatusMessage from "@/components/StatusMessage";
+
+function useCoopAction(language:"de"|"en") {
+ const router=useRouter(),busyRef=useRef(false),[busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+ async function run(body:Record<string,unknown>){
+  if(busyRef.current)return null;busyRef.current=true;setBusy(true);setError("");setMessage("");
+  try{const r=await fetch("/api/coop",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error);setMessage(language==="en"?"Saved.":"Gespeichert.");router.refresh();return j;}
+  catch(e){setError(e instanceof Error?e.message:String(e));return null;}
+  finally{busyRef.current=false;setBusy(false);}
+ }
+ return {run,busy,status:<>{error&&<StatusMessage tone="error">{error}</StatusMessage>}{message&&<StatusMessage tone="success">{message}</StatusMessage>}</>};
+}
+export function CoopSetup({language,link}:{language:"de"|"en";link:{name:string;guest_universe_id:string|null;invite_expires_at:string|null}|null}){
+ const en=language==="en",{run,busy,status}=useCoopAction(language),[code,setCode]=useState(""),[copied,setCopied]=useState(false);
+ async function invite(action:string,name?:string){const j=await run({action,name});if(j?.code){setCode(j.code);setCopied(false);}}
+ return <section className="coopSetup">{status}{!link?<div className="grid2">
+  <form onSubmit={e=>{e.preventDefault();invite("create",String(new FormData(e.currentTarget).get("name")));}}><h2>{en?"Invite your teammate":"Mitspieler einladen"}</h2><p>{en?"Connect two careers from the same MyNBA save. The other account accepts with a one-time code.":"Verbindet zwei Karrieren aus demselben MyNBA-Spielstand. Der andere Account nimmt mit einem einmaligen Code an."}</p><label>{en?"Shared career world":"Gemeinsame Karrierewelt"}<input name="name" required maxLength={80} defaultValue={en?"Our MyNBA":"Unsere MyNBA"}/></label><button disabled={busy}>{en?"Create invitation":"Einladung erstellen"}</button></form>
+  <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run({action:"join",code:f.get("code")});}}><h2>{en?"Join your teammate":"Mitspieler beitreten"}</h2><label>{en?"Invitation code":"Einladungscode"}<input name="code" required maxLength={48} autoComplete="off" spellCheck={false}/></label><label className="coopConsent"><input type="checkbox" required/>{en?"We use the same MyNBA save. I agree to share my player profile, stats, achievements and media coverage with this partner.":"Wir nutzen denselben MyNBA-Spielstand. Ich teile Spielerprofil, Statistiken, Erfolge und Berichte mit diesem Mitspieler."}</label><button disabled={busy}>{en?"Link careers":"Karrieren verbinden"}</button></form>
+ </div>:!link.guest_universe_id?<><h2>{en?"Your invitation":"Deine Einladung"}</h2><p>{en?"Send the code to your partner. They open Co-op in their own account, select their career and accept. Both careers need the same season and language.":"Gib den Code deinem Mitspieler. Er öffnet Koop in seinem Account, wählt seine Karriere und tritt bei. Beide Karrieren benötigen dieselbe Saison und Sprache."}</p>{code?<div className="coopInvite"><label>{en?"Copy this code now; it is only shown once.":"Kopiere den Code jetzt; er wird nur einmal angezeigt."}<input readOnly value={code} onFocus={e=>e.target.select()}/></label><button type="button" className="secondaryButton" onClick={async()=>{try{await navigator.clipboard.writeText(code);setCopied(true);}catch{setCopied(false);}}}>{copied?(en?"Copied":"Kopiert"):(en?"Copy code":"Code kopieren")}</button></div>:<p className="muted">{en?"For privacy, a previously issued code cannot be displayed again. You can replace it below.":"Ein bereits ausgegebener Code wird nicht erneut angezeigt. Du kannst ihn unten ersetzen."}</p>}{link.invite_expires_at&&<p>{en?"Valid until":"Gültig bis"} {new Date(link.invite_expires_at).toLocaleDateString(en?"en-US":"de-DE",{timeZone:"UTC"})}</p>}<button disabled={busy} className="secondaryButton" onClick={()=>invite("rotate")}>{en?"Replace invitation code":"Einladungscode ersetzen"}</button></>:null}
+ {link&&<details className="formDisclosure"><summary>{link.guest_universe_id?(en?"Disconnect careers":"Verbindung lösen"):(en?"Cancel invitation":"Einladung zurücknehmen")}</summary><p>{en?"Shared access ends for both accounts. Your careers, games and articles remain saved. Pending score proposals are removed.":"Der gemeinsame Zugriff endet für beide Accounts. Karrieren, Spiele und Artikel bleiben gespeichert. Offene Ergebniskorrekturen werden entfernt."}</p><button disabled={busy} className="secondaryButton" onClick={async()=>{const r=await run({action:"leave"});if(r)setCode("");}}>{en?"Disconnect now":"Jetzt Verbindung lösen"}</button></details>}
+ </section>;
+}
+export function CoopScoreForm({language,hostGameId,guestGameId,home,away,homeScore,awayScore}:{language:"de"|"en";hostGameId:string;guestGameId:string;home:string;away:string;homeScore:number;awayScore:number}){
+ const en=language==="en",{run,busy,status}=useCoopAction(language);
+ return <details className="formDisclosure"><summary>{en?"Propose a result correction":"Endstandkorrektur vorschlagen"}</summary>{status}<p>{en?"Your partner must confirm. Both final scores then change together; individual stat lines and earlier articles remain intact.":"Dein Mitspieler muss bestätigen. Danach ändern sich beide Endstände gemeinsam; einzelne Statlines und frühere Artikel bleiben erhalten."}</p><form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run({action:"propose",hostGameId,guestGameId,homeScore:f.get("homeScore"),awayScore:f.get("awayScore")});}}><div className="grid2"><label>{home}<input name="homeScore" type="number" min="0" max="9999" required defaultValue={homeScore}/></label><label>{away}<input name="awayScore" type="number" min="0" max="9999" required defaultValue={awayScore}/></label></div><button disabled={busy}>{en?"Ask partner to confirm":"Zur Bestätigung vorlegen"}</button></form></details>;
+}
+export function CoopProposalButtons({language,id,own}:{language:"de"|"en";id:string;own:boolean}){
+ const en=language==="en",{run,busy,status}=useCoopAction(language);
+ return <>{status}<div className="buttonRow">{!own&&<button disabled={busy} onClick={()=>run({action:"accept",proposalId:id})}>{en?"Confirm correction":"Korrektur bestätigen"}</button>}<button className="secondaryButton" disabled={busy} onClick={()=>run({action:"reject",proposalId:id})}>{own?(en?"Withdraw":"Zurückziehen"):(en?"Reject":"Ablehnen")}</button></div></>;
+}

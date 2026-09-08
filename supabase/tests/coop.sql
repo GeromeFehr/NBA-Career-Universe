@@ -1,0 +1,58 @@
+-- This file deliberately leaves no accounts, connections or game data behind.
+-- Wrap in BEGIN / ROLLBACK when running against a populated project.
+create temporary table coop_checks(name text);
+do $$
+declare actor uuid:=gen_random_uuid(); partner uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid();
+ u uuid; v uuid; w uuid; c uuid; d uuid; h uuid; a uuid; season uuid; g uuid; g2 uuid; l uuid; p uuid; payload jsonb; saved jsonb;
+begin
+ insert into auth.users(id,email,aud,role) values(actor,'coop-'||actor||'@example.invalid','authenticated','authenticated'),(partner,'coop-'||partner||'@example.invalid','authenticated','authenticated'),(outsider,'coop-'||outsider||'@example.invalid','authenticated','authenticated');
+ select id into h from teams where active order by abbreviation limit 1;
+ select id into a from teams where active and id<>h order by abbreviation limit 1;
+ select id into season from seasons where current order by start_date desc limit 1;
+ u:=create_career_universe(actor,jsonb_build_object('name','Coop fixture A','playerName','Player A','teamId',h,'language','de'));
+ v:=create_career_universe(partner,jsonb_build_object('name','Coop fixture B','playerName','Player B','teamId',a,'language','de'));
+ w:=create_career_universe(outsider,jsonb_build_object('name','Coop fixture C','playerName','Player C','teamId',a,'language','de'));
+ select id into c from career_profiles where universe_id=u;
+ select id into d from career_profiles where universe_id=v;
+ l:=manage_coop(actor,u,'create',repeat('a',64),'Our test');
+ begin perform manage_coop(outsider,u,'leave'); raise exception 'Foreign owner disconnected'; exception when raise_exception then if sqlerrm<>'FORBIDDEN' then raise; end if; end;
+ perform manage_coop(actor,u,'rotate',repeat('b',64));
+ begin perform manage_coop(partner,v,'join',repeat('a',64)); raise exception 'Old invite accepted'; exception when raise_exception then if sqlerrm<>'COOP_INVALID_INVITE' then raise; end if; end;
+ update coop_links set invite_expires_at=now()-interval '1 hour' where id=l;
+ begin perform manage_coop(partner,v,'join',repeat('b',64)); raise exception 'Expired invite accepted'; exception when raise_exception then if sqlerrm<>'COOP_INVALID_INVITE' then raise; end if; end;
+ perform manage_coop(actor,u,'rotate',repeat('c',64));
+ update universes set language='en' where id=v;
+ begin perform manage_coop(partner,v,'join',repeat('c',64)); raise exception 'Mixed languages accepted'; exception when raise_exception then if sqlerrm<>'COOP_LANGUAGE_MISMATCH' then raise; end if; end;
+ update universes set language='de' where id=v;
+ perform manage_coop(partner,v,'join',repeat('c',64));
+ if (select guest_universe_id from coop_links where id=l)<>v or (select invite_hash from coop_links where id=l) is not null then raise exception 'Join did not consume invitation'; end if;
+ begin perform manage_coop(outsider,w,'join',repeat('c',64)); raise exception 'Third member accepted'; exception when raise_exception then if sqlerrm<>'COOP_INVALID_INVITE' then raise; end if; end;
+ insert into coop_checks values('invitation rotation, expiry, language, two-account membership and owner checks');
+ insert into games(season_id,source_key,game_date,game_day,home_team_id,away_team_id,universe_id) values(season,'coop-test:'||gen_random_uuid(),'2026-11-15 20:00Z','2026-11-15',h,a,u) returning id into g;
+ insert into games(season_id,source_key,game_date,game_day,home_team_id,away_team_id,universe_id) values(season,'coop-test:'||gen_random_uuid(),'2026-11-15 21:00Z','2026-11-15',h,a,v) returning id into g2;
+ payload:='{"homeScore":115,"awayScore":102,"stat":{"appearance_status":"played","minutes":36,"points":30,"rebounds":10,"assists":10,"steals":1,"blocks":2,"turnovers":3,"fouls":2,"technical_fouls":0,"flagrant_fouls":0,"fgm":10,"fga":20,"tpm":4,"tpa":8,"ftm":6,"fta":6,"plus_minus":13,"started":true,"fouled_out":false,"ejected":false,"injured":false},"notables":[]}'::jsonb;
+ saved:=save_career_game(actor,c,g,payload);
+ begin perform save_career_game(partner,d,g2,jsonb_set(payload,'{homeScore}','116')); raise exception 'Conflicting result accepted'; exception when raise_exception then if sqlerrm<>'COOP_SCORE_CONFLICT' then raise; end if; end;
+ if exists(select 1 from player_game_stats where career_id=d and game_id=g2) then raise exception 'Rejected save left partial stats'; end if;
+ perform save_career_game(partner,d,g2,payload);
+ begin perform save_career_game(actor,d,g2,payload); raise exception 'Partner stats edited'; exception when raise_exception then if sqlerrm<>'FORBIDDEN' then raise; end if; end;
+ insert into coop_checks values('custom fixture matching, score consistency, atomic rollback and separate player ownership');
+ perform coop_score_action(actor,u,'propose',jsonb_build_object('hostGameId',g,'guestGameId',g2,'homeScore',118,'awayScore',102));
+ select id into p from coop_score_proposals where link_id=l and status='pending';
+ begin perform coop_score_action(actor,u,'accept',jsonb_build_object('proposalId',p)); raise exception 'Self-approved correction'; exception when raise_exception then if sqlerrm<>'COOP_PARTNER_CONFIRMATION' then raise; end if; end;
+ begin perform coop_score_action(outsider,w,'accept',jsonb_build_object('proposalId',p)); raise exception 'Outsider approved correction'; exception when raise_exception then if sqlerrm<>'COOP_NOT_LINKED' then raise; end if; end;
+ perform coop_score_action(partner,v,'accept',jsonb_build_object('proposalId',p));
+ if (select count(*) from universe_games where universe_id in(u,v) and home_score=118)<>2 then raise exception 'Correction not synchronized'; end if;
+ if (select count(*) from player_game_stats where career_id in(c,d) and points=30)<>2 then raise exception 'Correction modified player stats'; end if;
+ begin perform coop_score_action(partner,v,'accept',jsonb_build_object('proposalId',p)); raise exception 'Correction replayed'; exception when raise_exception then if sqlerrm<>'COOP_PROPOSAL_CLOSED' then raise; end if; end;
+ insert into coop_checks values('partner-only confirmation, synchronized correction, preserved stats and replay protection');
+ if has_table_privilege('authenticated','public.coop_links','SELECT') or has_table_privilege('anon','public.coop_score_proposals','SELECT') or has_function_privilege('authenticated','public.manage_coop(uuid,uuid,text,text,text)','EXECUTE') then raise exception 'Shared access bypass exposed'; end if;
+ perform manage_coop(partner,v,'leave');
+ if exists(select 1 from coop_links where id=l) or exists(select 1 from coop_score_proposals where link_id=l) then raise exception 'Disconnect did not revoke access'; end if;
+ if (select count(*) from player_game_stats where career_id in(c,d))<>2 then raise exception 'Disconnect erased careers'; end if;
+ update universe_games set home_score=120 where universe_id=u and game_id=g;
+ l:=manage_coop(actor,u,'create',repeat('d',64),'Our test');
+ begin perform manage_coop(partner,v,'join',repeat('d',64)); raise exception 'Existing conflicting scores linked'; exception when raise_exception then if sqlerrm<>'COOP_EXISTING_CONFLICT' then raise; end if; end;
+ insert into coop_checks values('direct access closed, disconnect preserves careers, existing conflicts block joining');
+end $$;
+select name,'passed' as result from coop_checks order by name;

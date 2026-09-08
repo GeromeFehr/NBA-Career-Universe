@@ -6,6 +6,10 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+type CoopLink = {id:string;name:string;host_universe_id:string;guest_universe_id:string|null;invite_hash:string|null;invite_expires_at:string|null;joined_at:string|null;created_at:string};
+type CoopProposal = {id:string;link_id:string;requested_by:string;host_game_id:string;guest_game_id:string;home_score:number;away_score:number;expected:Json;status:string;approval_tx:number|null;created_at:string};
+type CoopTable<T> = {Row:T;Insert:Partial<T>;Update:Partial<T>;Relationships:[]};
+
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -14,6 +18,8 @@ export type Database = {
   }
   public: {
     Tables: {
+      coop_links: CoopTable<CoopLink>
+      coop_score_proposals: CoopTable<CoopProposal>
       action_jobs: {
         Row: {
           career_id: string
@@ -2361,6 +2367,8 @@ export type Database = {
       }
     }
     Functions: {
+      manage_coop: {Args:{p_actor:string;p_universe:string;p_action:string;p_hash?:string;p_name?:string};Returns:string}
+      coop_score_action: {Args:{p_actor:string;p_universe:string;p_action:string;p_data:Json};Returns:undefined}
       answer_career_interview: {
         Args: {
           p_actor: string

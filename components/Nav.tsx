@@ -18,10 +18,10 @@ export default function Nav({language="de",signedIn=false,universeName,team,init
     if(!open&&el?.open)el.close();
     if(open){const previous=document.body.style.overflow;document.body.style.overflow="hidden";return ()=>{document.body.style.overflow=previous};}
   },[open]);
-  const primary=[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Career":"Karriere"],["/media",en?"Media":"Medien"],["/world",en?"Career world":"Karrierewelt"]];
+  const primary=[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Career":"Karriere"],["/media",en?"Media":"Medien"],["/world",en?"Career world":"Karrierewelt"],["/coop",en?"Co-op":"Koop"]];
   const groups=[
     [en?"On the court":"Auf dem Court",[["/",en?"Today":"Heute"],["/schedule",en?"Schedule":"Spielplan"],["/playoffs","Playoffs"]]],
-    [en?"Your career":"Deine Karriere",[["/career",en?"Player file":"Spielerakte"],["/agency",en?"Agent & contracts":"Berater & Verträge"]]],
+    [en?"Your career":"Deine Karriere",[["/career",en?"Player file":"Spielerakte"],["/coop",en?"Co-op":"Koop"],["/agency",en?"Agent & contracts":"Berater & Verträge"]]],
     [en?"Around the league":"Rund um die Liga",[["/world",en?"Career world":"Karrierewelt"],["/media",en?"Media & press":"Medien & Presse"],["/trades","Trades"]]],
     [en?"Manage":"Verwalten",[["/admin",en?"Control room":"Verwaltung"],["/universes",en?"My careers":"Meine Karrieren"],["/settings",en?"Settings":"Einstellungen"]]],
   ] as [string,string[][]][];

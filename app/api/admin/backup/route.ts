@@ -3,7 +3,10 @@ import {requireAdmin} from "@/lib/auth";
 import {fetchPaged} from "@/lib/universe";
 import {apiFailure} from "@/lib/http";
 export async function GET(){try{
- const {career,universe,client}=await requireAdmin();const out:Record<string,unknown>={exported_at:new Date().toISOString(),schema_version:"3.0",universe,career};
+ const {career,universe,client}=await requireAdmin();const out:Record<string,unknown>={exported_at:new Date().toISOString(),schema_version:"3.1",universe,career};
+ // Include connection metadata, never invitation secrets or the partner's private career.
+ const coop=await client.from("coop_links").select("id,name,host_universe_id,guest_universe_id,joined_at,created_at").or(`host_universe_id.eq.${universe.id},guest_universe_id.eq.${universe.id}`).maybeSingle();if(coop.error)throw coop.error;out.coop=coop.data;
+ if(coop.data?.guest_universe_id)out.coop_score_proposals=await fetchPaged((from,to)=>client.from("coop_score_proposals").select("id,requested_by,host_game_id,guest_game_id,home_score,away_score,expected,status,created_at").eq("link_id",coop.data!.id).order("id").range(from,to));
  const careerTables=["world_settings","team_stints","player_game_stats","game_notables","injuries","career_events","story_arcs","trade_interest","trade_offers","media_posts","award_snapshots","milestones","relationships","universe_reputation","rivalries","persona_memories","pregame_coverage","postgame_grades","season_goals","career_records","trophies","trade_sagas","interviews","fanbase_metrics","season_recaps","legacy_scores","screenshot_scans","ai_usage_logs","career_contracts","career_ledger"] as const;
  // Bounded concurrency, deterministic ordering, full pagination for long careers.
  for(let i=0;i<careerTables.length;i+=5)await Promise.all(careerTables.slice(i,i+5).map(async table=>{out[table]=await fetchPaged((from,to)=>client.from(table).select("*").eq("career_id",career.id).order(table==="universe_reputation"||table==="legacy_scores"?"career_id":"id").range(from,to));}));
