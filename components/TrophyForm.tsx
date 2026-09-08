@@ -12,7 +12,7 @@ export default function TrophyForm({seasons,currentSeasonId,careerDate,language}
       })});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-      setMsg(en?"Added to trophy room.":"Zur Trophy Room hinzugefügt.");setTimeout(()=>location.reload(),500);
+      setMsg(en?"Achievement saved.":"Erfolg gespeichert.");setTimeout(()=>location.reload(),500);
     }catch(err:any){setMsg(err.message)}
     finally{setBusy(false)}
   }}>

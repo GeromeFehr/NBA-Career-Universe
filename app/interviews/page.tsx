@@ -1,3 +1,4 @@
+import MediaNavigation from "@/components/MediaNavigation";
 import {pageContext} from "@/lib/universe";
 import {langOf} from "@/lib/i18n";
 import InterviewPanel from "@/components/InterviewPanel";
@@ -14,7 +15,7 @@ export default async function Page(){
   const open=(rows||[]).filter((x:any)=>x.status==="open").sort((a:any,b:any)=>Number(b.importance||0)-Number(a.importance||0));
   const past=(rows||[]).filter((x:any)=>x.status!=="open");
 
-  return <>
+  return <><MediaNavigation language={lang} current="press"/>
     <div className="sectionHead"><div><h1>{en?"Press Conferences":"Pressekonferenzen"}</h1></div></div>
     <p className="muted pageIntro">{en
       ?"Your game creates the questions. Your answers shape how the league sees you."

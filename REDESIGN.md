@@ -39,3 +39,10 @@ Request-scoped identity/context caching, a server-only typed database client, gr
 Jonas Keller is the fictional agent. Offers use real brand names and deterministic local calculations, with no paid model request. Sponsorship terms start at signature; salary terms are copied from the MyNBA save. Fees are 15% for sponsorships and 4% for salary. Completed calendar months pay automatically when the career date changes; partial months are prorated. The journal preserves every posted payment and filters totals by the selected career date. Repeating a signature or settlement cannot duplicate payments. Original contract identity and historical team remain recorded after a trade.
 
 All new RPCs are security invoker and callable only by the server service role, with explicit owner validation. Financial tables are owner-readable via RLS. The Supabase advisor still reports the pre-existing disabled leaked-password check in Auth; internal server-only action/log tables intentionally have no client policies.
+
+
+## Navigation consolidation
+
+The primary navigation has five areas: Today, Games, Career, Media and Career World. Reports, Social and Press share one Media entry and local section links. Career contains the game log, career highs, chronology, trophies, award races and season archive. Award standings and trophies keep their original records and editing flows; old `/awards` and `/trophy-room` links redirect to their Career sections. Pregame is reached from the schedule. Agent contracts, trades, playoffs and management remain available in the menu.
+
+Career game logs resolve the opponent from the appearance's historical `team_id` and the game's home/away teams, with logo and venue. The current career team is never used to reinterpret a past game.

@@ -16,14 +16,14 @@ export default function Nav({language="de",signedIn=false,universeName,team}: {l
     if(!open&&el?.open)el.close();
     if(open){const previous=document.body.style.overflow;document.body.style.overflow="hidden";return ()=>{document.body.style.overflow=previous};}
   },[open]);
-  const primary=[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Player":"Spieler"],["/media","News"],["/social","Social"],["/world",en?"The league":"Die Liga"]];
+  const primary=[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Career":"Karriere"],["/media",en?"Media":"Medien"],["/world",en?"Career world":"Karrierewelt"]];
   const groups=[
-    [en?"On the court":"Auf dem Court",[["/",en?"Today":"Heute"],["/schedule",en?"Schedule":"Spielplan"],["/pregame",en?"Pregame":"Vor dem Spiel"],["/playoffs","Playoffs"]]],
-    [en?"Your career":"Deine Karriere",[["/career",en?"Player file":"Spielerakte"],["/agency",en?"Agent & contracts":"Berater & Verträge"],["/awards","Awards"],["/trophy-room",en?"Trophy room":"Trophäen"]]],
-    [en?"Around the league":"Rund um die Liga",[["/world",en?"Career world":"Karrierewelt"],["/media","News"],["/social","Social"],["/interviews",en?"Press conferences":"Pressekonferenzen"],["/trades","Trades"]]],
+    [en?"On the court":"Auf dem Court",[["/",en?"Today":"Heute"],["/schedule",en?"Schedule":"Spielplan"],["/playoffs","Playoffs"]]],
+    [en?"Your career":"Deine Karriere",[["/career",en?"Player file":"Spielerakte"],["/agency",en?"Agent & contracts":"Berater & Verträge"]]],
+    [en?"Around the league":"Rund um die Liga",[["/world",en?"Career world":"Karrierewelt"],["/media",en?"Media & press":"Medien & Presse"],["/trades","Trades"]]],
     [en?"Manage":"Verwalten",[["/admin",en?"Control room":"Verwaltung"],["/universes",en?"My careers":"Meine Karrieren"],["/settings",en?"Settings":"Einstellungen"]]],
   ] as [string,string[][]][];
-  const active=(href:string)=>path===href || (href==="/schedule"&&path.startsWith("/game/"));
+  const active=(href:string)=>path===href || (href==="/schedule"&&(path.startsWith("/game/")||path==="/pregame"||path==="/playoffs")) || (href==="/media"&&(path==="/social"||path==="/interviews"));
   return <>
     <a className="skipLink" href="#main">{en?"Skip to content":"Zum Inhalt"}</a>
     <header className="masthead">

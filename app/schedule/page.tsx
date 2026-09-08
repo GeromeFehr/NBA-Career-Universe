@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {pageContext,loadCareerSchedule} from "@/lib/universe";
 import {langOf,t} from "@/lib/i18n";
 import ScheduleExplorer from "@/components/ScheduleExplorer";
@@ -22,6 +23,7 @@ export default async function Page(){
     <p className="muted">{lang==="en"
       ?"Only games from your career are shown. Played games remain in history; after a trade, future games from the old team disappear and only the new team's games remain. Manual playoff and custom games belong only to this universe."
       :"Angezeigt werden nur Spiele deiner Karriere: bereits gespielte Partien bleiben in der Historie, nach einem Trade verschwinden alte zukünftige Teamspiele und es erscheinen nur noch die Partien des neuen Teams. Manuell angelegte Playoff- und Custom-Spiele gehören ausschließlich zu diesem Universe."}</p>
+    <p><Link className="textLink" href="/pregame">{lang==="en"?"Prepare for the next game":"Das nächste Spiel vorbereiten"} →</Link></p>
     <ScheduleExplorer games={relevant} teams={teams||[]} universeDate={career.universe_date||""} language={lang}/>
   </>;
 }

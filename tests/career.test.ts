@@ -76,3 +76,17 @@ test("milestone rebuild sorts historical games and excludes non-appearances", ()
   assert.equal(result.filter(x => x.code === "PTS_50").length, 1);
   assert.equal(result.some(x => x.game_id === "dnp"), false);
 });
+
+
+test("career game log resolves home and away opponents using the historical team", async () => {
+  const {gameOpponent} = await import("../lib/game-opponent");
+  const game = {home_team_id: "gsw", away_team_id: "lal", home: {id: "gsw", abbreviation: "GSW"}, away: {id: "lal", abbreviation: "LAL"}};
+  assert.deepEqual(gameOpponent("gsw", game), {team: game.away, home: true});
+  assert.deepEqual(gameOpponent("lal", game), {team: game.home, home: false});
+  // A later move to another team must not change the opponent stored in an older game.
+  const historicalStat = {team_id: "gsw"};
+  assert.equal(gameOpponent(historicalStat.team_id, game)?.team?.abbreviation, "LAL");
+  assert.equal(gameOpponent("bos", game), null);
+  assert.equal(gameOpponent(null, game), null);
+  assert.equal(gameOpponent("gsw", null), null);
+});
