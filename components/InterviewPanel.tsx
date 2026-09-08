@@ -1,5 +1,6 @@
 "use client";
 import {useState} from "react";
+import {label} from "@/lib/labels";
 
 export default function InterviewPanel({interview,language}:{interview:any;language:"de"|"en"}){
   const en=language==="en";
@@ -19,7 +20,7 @@ export default function InterviewPanel({interview,language}:{interview:any;langu
         <span className="eyebrow">{interview.outlet|| (en?"PRESS CONFERENCE":"PRESSEKONFERENZ")}</span>
         <strong>{interview.reporter_name|| (en?"Reporter":"Reporter")}</strong>
       </div>
-      {interview.topic&&<span className="pill">{interview.topic}</span>}
+      {interview.topic&&<span className="pill">{label(interview.topic,language)}</span>}
     </div>
 
     {interview.context&&<p className="interviewContext">{interview.context}</p>}
@@ -42,7 +43,7 @@ export default function InterviewPanel({interview,language}:{interview:any;langu
         }catch(e:any){setError(e.message)}
         finally{setBusy(false)}
       }}>
-        {o.style&&<span className="answerStyle">{o.style}</span>}
+        {o.style&&<span className="answerStyle">{label(o.style,language)}</span>}
         <span>{o.label}</span>
       </button>)}
     </div>

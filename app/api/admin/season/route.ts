@@ -1,13 +1,15 @@
+import {apiFailure,readJson} from "@/lib/http";
+import {validDate,cleanText} from "@/lib/game-input";
 import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 import {createSeasonRecap,initializeSeasonGoals} from "@/lib/world-engine";
 
 export async function POST(req:Request){
   try{
-    const {career,universe,client}=await requireAdmin();
+    const {user,career,universe,client}=await requireAdmin();
     const lang=universe.language==="en"?"en":"de";
-    const b=await req.json();
-    const label=String(b.label||"").trim(),start=String(b.startDate||""),end=String(b.endDate||"");
+    const b=await readJson(req);
+    const label=cleanText(b.label,100)||"",start=validDate(b.startDate),end=validDate(b.endDate);
     if(!label||!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end))
       return NextResponse.json({error:lang==="en"?"Season label, start and end are required.":"Saisonname, Start und Ende werden benötigt."},{status:400});
     if(new Date(end)<new Date(start))
@@ -25,22 +27,22 @@ export async function POST(req:Request){
       season=inserted.data;
     }
 
-    const date=String(b.universeDate||start);
-    await Promise.all([
-      client.from("universes").update({current_season_id:season.id,universe_date:date,updated_at:new Date().toISOString()}).eq("id",universe.id),
-      client.from("career_profiles").update({universe_date:date,updated_at:new Date().toISOString()}).eq("id",career.id),
-      client.from("world_settings").update({current_season_id:season.id,universe_date:date,updated_at:new Date().toISOString()}).eq("career_id",career.id),
-      client.from("career_events").insert({
+    const date=validDate(b.universeDate||start);
+    const {error:dateError}=await client.rpc("set_career_date",{p_actor:user.id,p_career:career.id,p_date:date,p_season:season.id});
+    if(dateError)throw dateError;
+    if(universe.current_season_id!==season.id){
+      const {error:eventError}=await client.from("career_events").insert({
         career_id:career.id,event_date:date,event_type:"season_transition",
         title:lang==="en"?`New season: ${label}`:`Neue Saison: ${label}`,
         description:lang==="en"?`Universe switched to ${label}.`:`Universe auf ${label} umgestellt.`,
         metadata:{season_id:season.id},language:lang
-      })
-    ]);
+      });
+      if(eventError)throw eventError;
+    }
 
     await initializeSeasonGoals(career,season.id,lang);
     return NextResponse.json({ok:true,season,message:lang==="en"?`${label} is now the active MyNBA season`:`${label} ist jetzt die aktive MyNBA-Saison`});
   }catch(e){
-    return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
+    return apiFailure(e);
   }
 }

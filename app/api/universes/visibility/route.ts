@@ -1,16 +1,6 @@
-import { NextResponse } from "next/server";
-import { requireUser, apiStatus } from "@/lib/auth";
-import { db } from "@/lib/db";
-
-export async function POST(req: Request) {
-  try {
-    const user = await requireUser();
-    const { universeId, visibility } = await req.json();
-    if (!["private","public"].includes(visibility)) return NextResponse.json({error:"Ungültige Sichtbarkeit"},{status:400});
-    const { error } = await db().from("universes").update({visibility,updated_at:new Date().toISOString()}).eq("id",universeId).eq("owner_id",user.id);
-    if (error) throw error;
-    return NextResponse.json({ok:true});
-  } catch (e) {
-    return NextResponse.json({ error:e instanceof Error?e.message:String(e) }, { status:apiStatus(e) });
-  }
-}
+import {NextResponse} from "next/server";
+import {requireUser} from "@/lib/auth";
+import {db} from "@/lib/db";
+import {apiFailure,readJson} from "@/lib/http";
+import {uuid,InputError} from "@/lib/game-input";
+export async function POST(req:Request){try{const user=await requireUser(),b=await readJson(req);if(!["private","public"].includes(b.visibility))throw new InputError("INVALID_VALUES");const {data,error}=await db().from("universes").update({visibility:b.visibility,updated_at:new Date().toISOString()}).eq("id",uuid(b.universeId)).eq("owner_id",user.id).select("id").maybeSingle();if(error)throw error;if(!data)throw Error("FORBIDDEN");const response=NextResponse.json({ok:true});return response;}catch(e){return apiFailure(e);}}

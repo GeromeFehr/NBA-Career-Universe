@@ -1,0 +1,17 @@
+import {pageContext,fetchPaged} from "@/lib/universe";
+import {langOf} from "@/lib/i18n";
+import {money,contractState} from "@/lib/agency-display";
+import {localDate} from "@/lib/format";
+import {AGENT_NAME} from "@/lib/agency";
+import {PageHeader,MetricStrip,Section} from "@/components/Editorial";
+import AgencyPanel from "@/components/AgencyPanel";
+export const dynamic="force-dynamic";
+export default async function Page(){
+ const {client,career,universe}=await pageContext(),lang=langOf(universe),en=lang==="en";
+ const [contracts,ledger]=await Promise.all([
+  fetchPaged((from,to)=>client.from("career_contracts").select("*").eq("career_id",career.id).order("created_at",{ascending:false}).order("id").range(from,to)),
+  fetchPaged((from,to)=>client.from("career_ledger").select("*,contract:career_contracts(brand)").eq("career_id",career.id).lte("paid_on",career.universe_date).order("paid_on",{ascending:false}).order("id").range(from,to))
+ ]);
+ const active=contracts.filter(x=>contractState(x,career.universe_date)==="active"),sum=(key:string)=>ledger.reduce((a,x)=>a+Number(x[key]),0);
+ return <><PageHeader title={en?"The business of your career":"Deine Karriere. Auch ein Geschäft."} subtitle={en?"Contracts, sponsorships and every payment, on record.":"Verträge, Sponsoren und jede Auszahlung in deiner Spielerakte."}/><section className="agentLetter"><span className="agentMonogram">JK</span><div><h2>{AGENT_NAME}</h2><p className="muted">{en?"Your fictional career agent":"Dein fiktiver Karriereberater"}</p><p>{en?`${career.player_name}, your game creates opportunities. I’ll bring you the terms. You decide where your name belongs.`:`${career.player_name}, dein Spiel öffnet Türen. Ich bringe dir die Konditionen. Du entscheidest, wofür dein Name steht.`}</p></div></section><div className="agencyMetrics"><MetricStrip dark items={[{label:en?"Annual contract value":"Vertragswert pro Jahr",value:money(active.reduce((a,x)=>a+Number(x.annual_value),0),lang)},{label:en?"Gross received":"Brutto erhalten",value:money(sum("gross"),lang)},{label:en?"Agent fees":"Beraterprovisionen",value:money(sum("agent_fee"),lang)},{label:en?"After fees":"Nach Provision",value:money(sum("net"),lang)}]}/></div><p className="finePrint">{en?"Simulated USD amounts, before taxes. Brands are real; offers, the agent and payments are fictional. No affiliation or real contract.":"Simulierte USD-Beträge, vor Steuern. Marken sind real; Angebote, Berater und Zahlungen sind fiktiv. Keine Partnerschaft und kein echter Vertrag."}</p><AgencyPanel contracts={contracts} careerDate={career.universe_date} language={lang}/><Section title={en?"Payment journal":"Das Zahlungsjournal"}>{ledger.length?<div className="tableWrap" tabIndex={0}><table><thead><tr>{[en?"Date":"Datum",en?"Contract":"Vertrag",en?"Payment":"Zahlung",en?"Gross":"Brutto",en?"Agent":"Provision",en?"Received":"Erhalten"].map(k=><th key={k}>{k}</th>)}</tr></thead><tbody>{ledger.map(x=><tr key={x.id}><td>{localDate(x.paid_on,lang)}</td><td>{x.contract?.brand}</td><td>{x.kind==="signing_bonus"?(en?"Signing bonus":"Unterschriftsbonus"):`${localDate(x.period_start,lang)} – ${localDate(x.period_end,lang)}`}</td><td>{money(x.gross,lang)}</td><td>{money(x.agent_fee,lang)}</td><td><b>{money(x.net,lang)}</b></td></tr>)}</tbody></table></div>:<p>{en?"Your first payment will appear here after signing a contract.":"Deine erste Zahlung erscheint hier nach der Vertragsunterschrift."}</p>}</Section></>;
+}

@@ -15,16 +15,16 @@ export default async function Page(){
   const past=(rows||[]).filter((x:any)=>x.status!=="open");
 
   return <>
-    <div className="sectionHead"><div><span className="eyebrow">PRESS ROOM · {universe.name}</span><h1>{en?"Press Conferences":"Pressekonferenzen"}</h1></div></div>
+    <div className="sectionHead"><div><h1>{en?"Press Conferences":"Pressekonferenzen"}</h1></div></div>
     <p className="muted pageIntro">{en
-      ?"Questions now react to the actual game: huge stat lines, defense, efficiency, turnovers, close finishes, rivalries, discipline, trade noise and media pressure."
-      :"Die Fragen reagieren jetzt auf das tatsächliche Spiel: Monster-Statlines, Defense, Effizienz, Turnover, enge Spiele, Rivalries, Disziplin, Trade-Gerüchte und Mediendruck."}</p>
+      ?"Your game creates the questions. Your answers shape how the league sees you."
+      :"Deine Leistung liefert die Fragen. Deine Antworten prägen, wie die Liga dich sieht."}</p>
 
     {open.length
       ?<div className="pressStack">{open.map((i:any)=><InterviewPanel key={i.id} interview={i} language={lang}/>)}</div>
       :<div className="emptyState"><h3>{en?"No unanswered questions right now.":"Aktuell keine offene Frage."}</h3><p>{en?"The next notable game will create a new press conference.":"Nach dem nächsten relevanten Spiel entsteht automatisch eine neue Pressekonferenz."}</p></div>}
 
-    <div className="sectionHead"><div><span className="eyebrow">ARCHIVE</span><h2>{en?"Interview History":"Interview-Historie"}</h2></div></div>
+    <div className="sectionHead"><div><h2>{en?"Interview History":"Interview-Historie"}</h2></div></div>
     <div className="timeline">{past.map((i:any)=><div className="timelineItem" key={i.id}>
       <small>{i.interview_date}{i.reporter_name?" · "+i.reporter_name:""}{i.outlet?" · "+i.outlet:""}</small>
       <h3>{i.question}</h3>

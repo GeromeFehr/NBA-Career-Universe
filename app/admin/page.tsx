@@ -1,17 +1,7 @@
+import Link from "next/link";
 import AdminConsole from "@/components/AdminConsole";
-import {pageContext} from "@/lib/universe";
+import {controlData} from "@/lib/control";
 import {langOf} from "@/lib/i18n";
-
+import {PageHeader} from "@/components/Editorial";
 export const dynamic="force-dynamic";
-
-export default async function Page(){
-  const {universe}=await pageContext();
-  const lang=langOf(universe);
-  return <>
-    <div className="sectionHead">
-      <div><span className="eyebrow">CONTROL ROOM · {universe.name}</span><h1>Career Control Room</h1></div>
-      <a className="buttonLink" href="/universes">{lang==="en"?"Switch universe":"Universe wechseln"}</a>
-    </div>
-    <AdminConsole language={lang}/>
-  </>;
-}
+export default async function Page(){const data=await controlData(),lang=langOf(data.universe),en=lang==="en";return <><PageHeader title={en?"Behind the scenes":"Hinter den Kulissen"} subtitle={en?"Manage the facts of your career. The world builds on what you record here.":"Verwalte die Fakten deiner Karriere. Was du hier festhältst, prägt deine Welt."} actions={<Link href="/universes">{en?"Switch career":"Karriere wechseln"} →</Link>}/><AdminConsole language={lang} initialData={data}/></>;}

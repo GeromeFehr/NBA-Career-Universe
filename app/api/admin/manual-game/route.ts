@@ -1,3 +1,4 @@
+import {apiFailure} from "@/lib/http";
 import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 
@@ -40,6 +41,6 @@ export async function POST(req:Request){
     if(error||!game)throw error||new Error("Spiel konnte nicht erstellt werden.");
     return NextResponse.json({ok:true,game,message:`${game.away?.abbreviation} @ ${game.home?.abbreviation} angelegt`});
   }catch(e){
-    return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
+    return apiFailure(e);
   }
 }

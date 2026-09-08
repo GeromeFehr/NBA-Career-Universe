@@ -22,6 +22,7 @@ function canvasBlob(canvas:HTMLCanvasElement,type:string,quality:number){
 }
 
 export async function optimizeImage(file:File,maxDimension=1440,quality=0.68):Promise<OptimizedImage>{
+  if(!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)||file.size>25_000_000)throw new Error("JPG, PNG, WEBP, GIF · max. 25 MB");
   const bitmap=await createImageBitmap(file);
   const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
   const width=Math.max(1,Math.round(bitmap.width*scale));

@@ -1,3 +1,4 @@
+import {apiFailure} from "@/lib/http";
 import { NextResponse } from "next/server";
 import { requireUser, apiStatus } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -13,6 +14,6 @@ export async function POST(req: Request) {
     response.cookies.set("nba_universe", universe.id, { httpOnly:true, secure:process.env.NODE_ENV==="production", sameSite:"lax", path:"/", maxAge:60*60*24*365 });
     return response;
   } catch (e) {
-    return NextResponse.json({ error:e instanceof Error?e.message:String(e) }, { status:apiStatus(e) });
+    return apiFailure(e);
   }
 }

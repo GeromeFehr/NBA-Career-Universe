@@ -6,17 +6,17 @@ export function langOf(universe:any):AppLanguage{
 
 const dict={
   de:{
-    feed:"Feed",schedule:"Spielplan",career:"Karriere",news:"News",social:"Social",trades:"Trades",awards:"Awards",
-    control:"Control Room",universes:"Universen",settings:"Einstellungen",nextGame:"Nächstes Spiel",
+    feed:"Heute",schedule:"Spielplan",career:"Karriere",news:"News",social:"Social",trades:"Trades",awards:"Awards",
+    control:"Verwaltung",universes:"Universen",settings:"Einstellungen",nextGame:"Nächstes Spiel",
     openStats:"Spiel öffnen & Stats eintragen →",noNext:"Kein kommendes Spiel im aktuellen Datenbestand.",
-    seasonDashboard:"Saison-Dashboard",fullCareer:"volle Karriere →",newsroom:"Newsroom",allReports:"alle Berichte →",
-    activeStories:"Aktive Storylines",milestones:"Milestones",careerSchedule:"Karriere-Spielplan",
+    seasonDashboard:"Deine Saison",fullCareer:"volle Karriere →",newsroom:"Die Berichte",allReports:"alle Berichte →",
+    activeStories:"Aktive Storylines",milestones:"Meilensteine",careerSchedule:"Karriere-Spielplan",
     regularSeason:"Regular Season",games:"Spiele",allTeams:"Alle Teams",allMonths:"Alle Monate",allStatus:"Alle Status",
-    planned:"Geplant",final:"Final",searchTeam:"Team suchen…",mediaReports:"Medienberichte",timeline:"Timeline",
-    tradeCenter:"Trade Center",leagueInterest:"Interesse ligaweit",setup:"Setup & Architektur",
+    planned:"Geplant",final:"Final",searchTeam:"Team suchen…",mediaReports:"Medienberichte",timeline:"Chronik",
+    tradeCenter:"Der Trade-Markt",leagueInterest:"Interesse ligaweit",setup:"Einstellungen",
     language:"Sprache",german:"Deutsch",english:"English",save:"Speichern",account:"Account",activeUniverse:"Aktives Universe",
     privacy:"Datenschutz",ai:"KI",careerValues:"Karrierewerte",injuries:"Verletzungen",gameLog:"Game Log",
-    public:"Öffentlich",private:"Privat",world:"Welt",playoffs:"Playoffs",trophyRoom:"Trophy Room",interviews:"Presse",pregame:"Pregame"
+    public:"Öffentlich",private:"Privat",world:"Welt",playoffs:"Playoffs",trophyRoom:"Trophäen",interviews:"Presse",pregame:"Vor dem Spiel"
   },
   en:{
     feed:"Feed",schedule:"Schedule",career:"Career",news:"News",social:"Social",trades:"Trades",awards:"Awards",

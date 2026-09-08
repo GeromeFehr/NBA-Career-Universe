@@ -1,2 +1,3 @@
+import {apiFailure} from "@/lib/http";
 import {NextResponse} from "next/server";import {requireAdmin,apiStatus} from "@/lib/auth";import {generateWorldPulse} from "@/lib/ai";
-export async function POST(){try{const {career}=await requireAdmin();const items=await generateWorldPulse(career.id);return NextResponse.json({ok:true,items})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)})}}
+export async function POST(){try{const {career}=await requireAdmin();const items=await generateWorldPulse(career.id);return NextResponse.json({ok:true,items})}catch(e){return apiFailure(e)}}

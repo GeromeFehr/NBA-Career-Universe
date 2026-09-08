@@ -1,87 +1,26 @@
-import {pageContext} from "@/lib/universe";
+import Link from "next/link";
+import {pageContext,fetchPaged} from "@/lib/universe";
 import {summarizeStats,summarizeCareerMarks} from "@/lib/stats";
-import {langOf,t} from "@/lib/i18n";
-import StatCard from "@/components/StatCard";
+import {langOf} from "@/lib/i18n";
+import {label,prose} from "@/lib/labels";
+import {localDate} from "@/lib/format";
+import {Section,MetricStrip,EmptyState} from "@/components/Editorial";
+import PlayerIdentity from "@/components/PlayerIdentity";
 import TeamBadge from "@/components/TeamBadge";
 import CareerMarks from "@/components/CareerMarks";
-
 export const dynamic="force-dynamic";
-
 export default async function Page(){
-  const {client,career,universe}=await pageContext();
-  const lang=langOf(universe),en=lang==="en";
-  const [{data:s},{data:stints},{data:events},{data:injuries},{data:milestones}]=await Promise.all([
-    client.from("player_game_stats").select("*,team:teams(*)").eq("career_id",career.id).order("created_at"),
-    client.from("team_stints").select("*,teams(*)").eq("career_id",career.id).order("start_date"),
-    client.from("career_events").select("*").eq("career_id",career.id).eq("language",lang).order("event_date",{ascending:false}),
-    client.from("injuries").select("*").eq("career_id",career.id).order("start_date",{ascending:false}),
-    client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false})
-  ]);
-  const x=summarizeStats(s||[]);
-  const marks=summarizeCareerMarks(s||[]);
-  const today=en?"today":"heute";
-
-  return <>
-    <section className="hero">
-      <span className="eyebrow">{universe.name} · CAREER FILE</span>
-      <h1>{career.player_name}</h1>
-      <p>{career.position} · OVR {career.overall} · Draft {career.draft_year||"—"} #{career.draft_pick||"—"}</p>
-      <div className="heroBar">{(stints||[]).map((st:any)=><div key={st.id}>
-        <span>{st.start_date} – {st.end_date||today}</span>
-        <strong><TeamBadge team={st.teams} small/> {st.teams?.abbreviation}</strong>
-      </div>)}</div>
-    </section>
-
-    <section className="dashboardSection">
-      <div className="sectionHead dashboardSectionHead"><div><span className="eyebrow">CAREER TOTALS</span><h2>{t(lang,"careerValues")}</h2></div></div>
-      <div className="statGrid">
-        <StatCard label="Games" value={x.games}/><StatCard label="PPG" value={x.ppg.toFixed(1)}/><StatCard label="RPG" value={x.rpg.toFixed(1)}/>
-        <StatCard label="APG" value={x.apg.toFixed(1)}/><StatCard label="SPG" value={x.spg.toFixed(1)}/><StatCard label="BPG" value={x.bpg.toFixed(1)}/>
-      </div>
-    </section>
-
-    <section className="dashboardSection">
-      <div className="sectionHead dashboardSectionHead"><div><span className="eyebrow">CAREER MARKS</span><h2>{en?"Career Highs & Big Games":"Career Highs & Big Games"}</h2></div></div>
-      <CareerMarks marks={marks} language={lang}/>
-    </section>
-
-    <div className="dashboardGrid dashboardWorkspace">
-      <section className="dashboardMain">
-        <div className="sectionHead dashboardSectionHead"><div><span className="eyebrow">CAREER HISTORY</span><h2>{t(lang,"timeline")}</h2></div></div>
-        <div className="panel timelinePanel">
-          {(events||[]).length?<div className="timeline">{(events||[]).map((e:any)=><div className="timelineItem" key={e.id}>
-            <small>{e.event_date} · {e.event_type}</small>
-            <h3>{e.title||e.event_type}</h3>
-            <p>{e.description}</p>
-          </div>)}</div>:<div className="emptyState compact">{en?"No career events yet.":"Noch keine Karriere-Events."}</div>}
-        </div>
-      </section>
-
-      <aside className="dashboardRail">
-        <section className="railSection" id="injuries">
-          <div className="railHeading"><h2>{t(lang,"injuries")}</h2></div>
-          <div className="railPanel railList">
-            {(injuries||[]).length?(injuries||[]).map((i:any)=><div className="railListItem" key={i.id}>
-              <div><span className="eyebrow">{i.start_date} · {i.severity}</span><strong>{i.injury}</strong><p>{i.status}</p></div>
-            </div>):<p className="muted railEmpty">{en?"No injuries recorded.":"Keine Verletzungen eingetragen."}</p>}
-          </div>
-        </section>
-
-        <section className="railSection">
-          <div className="railHeading"><h2>{t(lang,"milestones")}</h2></div>
-          <div className="railPanel railList">
-            {(milestones||[]).length?(milestones||[]).slice(0,8).map((m:any)=><div className="railListItem milestoneItem" key={m.id}>
-              <div><strong className="clamp1">{m.title}</strong><p className="clamp2">{m.description}</p></div>
-            </div>):<p className="muted railEmpty">{en?"No milestones yet.":"Noch keine Milestones."}</p>}
-          </div>
-        </section>
-      </aside>
-    </div>
-
-    <div className="sectionHead"><div><span className="eyebrow">BOX SCORES</span><h2>{t(lang,"gameLog")}</h2></div></div>
-    <div className="tableWrap"><table>
-      <thead><tr><th>Team</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FG</th><th>Status</th></tr></thead>
-      <tbody>{(s||[]).map((g:any)=><tr key={g.id}><td>{g.team?.abbreviation}</td><td>{g.points}</td><td>{g.rebounds}</td><td>{g.assists}</td><td>{g.steals}</td><td>{g.blocks}</td><td>{g.turnovers}</td><td>{g.fgm}/{g.fga}</td><td>{g.appearance_status}</td></tr>)}</tbody>
-    </table></div>
-  </>;
+ const {client,career,universe}=await pageContext();const lang=langOf(universe),en=lang==="en";
+ const [stats,{data:stints},events,{data:injuries},milestones]=await Promise.all([
+  fetchPaged((from,to)=>client.from("player_game_stats").select("*,team:teams(*),game:games(game_day,season_id)").eq("career_id",career.id).order("id").range(from,to)),
+  client.from("team_stints").select("*,teams(*)").eq("career_id",career.id).order("start_date"),
+  fetchPaged((from,to)=>client.from("career_events").select("*").eq("career_id",career.id).eq("language",lang).order("event_date",{ascending:false}).order("id").range(from,to)),
+  client.from("injuries").select("*").eq("career_id",career.id).order("start_date",{ascending:false}),
+  fetchPaged((from,to)=>client.from("milestones").select("*").eq("career_id",career.id).eq("language",lang).order("achieved_at",{ascending:false}).order("id").range(from,to))
+ ]);const s=summarizeStats(stats);stats.sort((a,b)=>String(b.game?.game_day).localeCompare(String(a.game?.game_day)));
+ return <><PlayerIdentity career={career} universe={universe} language={lang}/><Section title={en?"Career totals":"Die Karriere in Zahlen"}><MetricStrip items={[{label:en?"Appearances":"Einsätze",value:s.games},{label:"PPG",value:s.ppg.toFixed(1)},{label:"RPG",value:s.rpg.toFixed(1)},{label:"APG",value:s.apg.toFixed(1)},{label:"SPG",value:s.spg.toFixed(1)},{label:"BPG",value:s.bpg.toFixed(1)}]}/></Section>
+ <Section title={en?"The jerseys you wore":"Die Trikots deiner Karriere"}><ol className="stintHistory">{stints?.map(x=><li key={x.id}><TeamBadge team={x.teams}/><div><h3>{x.teams?.city} {x.teams?.name}</h3><p>{localDate(x.start_date,lang)} – {x.end_date?localDate(x.end_date,lang):(en?"today":"heute")}</p></div></li>)}</ol></Section>
+ <Section title={en?"Career highs & big games":"Bestleistungen & große Spiele"}><CareerMarks marks={summarizeCareerMarks(stats)} language={lang}/></Section>
+ <div className="editorialGrid"><Section title={en?"Career journal":"Die Chronik"}>{events.length?<ol className="timeline">{events.map(x=><li className="timelineItem" key={x.id}><small>{localDate(x.event_date,lang)} · {label(x.event_type,lang)}</small><h3>{x.title||label(x.event_type,lang)}</h3><p>{x.description}</p></li>)}</ol>:<EmptyState title={en?"A career starts with a game":"Eine Karriere beginnt mit einem Spiel"} href="/schedule" action={en?"Open schedule":"Zum Spielplan"}/>}</Section><aside><Section title={en?"Medical history":"Die Krankenakte"} id="injuries">{injuries?.length?injuries.map(x=><article className="railStory" key={x.id}><small>{localDate(x.start_date,lang)} · {label(x.severity,lang)}</small><h3>{prose(x,"injury",lang,en?"Injury":"Verletzung")}</h3><p>{label(x.status,lang)}{x.end_date?` · ${localDate(x.end_date,lang)}`:""}</p></article>):<p>{en?"No injuries recorded.":"Keine Verletzungen verzeichnet."}</p>}</Section><Section title={en?"Milestones":"Meilensteine"}>{milestones.map(x=><article className="railStory" key={x.id}><h3>{x.title}</h3><p>{x.description}</p></article>)}{!milestones.length&&<p className="muted">{en?"Your first milestone is ahead.":"Dein erster Meilenstein liegt noch vor dir."}</p>}</Section></aside></div>
+ <Section title={en?"Every game, on record":"Spiel für Spiel"}>{stats.length?<div className="tableWrap" tabIndex={0} role="region" aria-label={en?"Career game log, scroll horizontally":"Karriere-Spielprotokoll, horizontal scrollbar"}><table><thead><tr>{[en?"Date":"Datum","Team","PTS","REB","AST","STL","BLK","TO","FG",en?"Appearance":"Einsatz"].map(k=><th key={k}>{k}</th>)}</tr></thead><tbody>{stats.map(x=><tr key={x.id}><td><Link href={"/game/"+x.game_id}>{localDate(x.game?.game_day,lang)}</Link></td><td>{x.team?.abbreviation}</td>{["points","rebounds","assists","steals","blocks","turnovers"].map(k=><td key={k}>{x.appearance_status==="played"?x[k]:"—"}</td>)}<td>{x.appearance_status==="played"?`${x.fgm}/${x.fga}`:"—"}</td><td>{label(x.appearance_status,lang)}{x.ejected?" · Ejection":""}{x.fouled_out?` · ${en?"Fouled out":"Ausgefoult"}`:""}</td></tr>)}</tbody></table></div>:<p className="muted">{en?"No games recorded yet.":"Noch kein Spiel verzeichnet."}</p>}</Section></>;
 }

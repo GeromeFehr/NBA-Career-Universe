@@ -1,2 +1,5 @@
-import {NextResponse} from "next/server";import {requireAdmin,apiStatus} from "@/lib/auth";
-export async function POST(req:Request){try{const {career,universe,client}=await requireAdmin();const b=await req.json();if(!/^\d{4}-\d{2}-\d{2}$/.test(b.date))return NextResponse.json({error:"Ungültiges Datum"},{status:400});await Promise.all([client.from("career_profiles").update({universe_date:b.date}).eq("id",career.id),client.from("world_settings").update({universe_date:b.date,updated_at:new Date().toISOString()}).eq("career_id",career.id),client.from("universes").update({universe_date:b.date,updated_at:new Date().toISOString()}).eq("id",universe.id)]);return NextResponse.json({ok:true})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)})}}
+import {NextResponse} from "next/server";
+import {requireAdmin} from "@/lib/auth";
+import {readJson,apiFailure} from "@/lib/http";
+import {validDate} from "@/lib/game-input";
+export async function POST(req:Request){try{const {user,career,client}=await requireAdmin();const b=await readJson(req);const {error}=await client.rpc("set_career_date",{p_actor:user.id,p_career:career.id,p_date:validDate(b.date)});if(error)throw error;return NextResponse.json({ok:true});}catch(e){return apiFailure(e);}}

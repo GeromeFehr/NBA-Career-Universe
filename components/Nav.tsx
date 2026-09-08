@@ -1,56 +1,41 @@
+"use client";
 import Link from "next/link";
-import {cookies} from "next/headers";
-import {currentUser} from "@/lib/auth";
-import {db} from "@/lib/db";
-import {langOf,t} from "@/lib/i18n";
-import LanguageSwitch from "@/components/LanguageSwitch";
+import {usePathname} from "next/navigation";
+import {useEffect,useRef,useState} from "react";
+import type {AppLanguage} from "@/lib/i18n";
 
-export default async function Nav(){
-  const user=await currentUser();
-  let universe:any=null;
-  if(user){
-    const store=await cookies();
-    const universeId=store.get("nba_universe")?.value;
-    if(universeId){
-      const {data}=await db().from("universes").select("id,owner_id,language").eq("id",universeId).maybeSingle();
-      if(data?.owner_id===user.id)universe=data;
-    }
-  }
-  const lang=langOf(universe),en=lang==="en";
-
-  return <header className="topbar">
-    <Link className="brand" href="/" aria-label="Career Universe Home"><span className="brandDot"/>CAREER//UNIVERSE</Link>
-
-    <nav className="navlinks" aria-label={en?"Main navigation":"Hauptnavigation"}>
-      {user?<>
-        <Link href="/">{t(lang,"feed")}</Link>
-        <Link href="/schedule">{t(lang,"schedule")}</Link>
-        <Link href="/career">{t(lang,"career")}</Link>
-        <Link href="/world">{t(lang,"world")}</Link>
-        <Link href="/media">{t(lang,"news")}</Link>
-        <Link href="/social">{t(lang,"social")}</Link>
-        <Link href="/trades">{t(lang,"trades")}</Link>
-
-        <details className="navMore">
-          <summary>{en?"More":"Mehr"} <span>⌄</span></summary>
-          <div className="navMenu">
-            <Link href="/pregame">{t(lang,"pregame")}</Link>
-            <Link href="/playoffs">{t(lang,"playoffs")}</Link>
-            <Link href="/trophy-room">{t(lang,"trophyRoom")}</Link>
-            <Link href="/interviews">{t(lang,"interviews")}</Link>
-            <Link href="/awards">{t(lang,"awards")}</Link>
-            <span className="navDivider"/>
-            <Link href="/admin">{t(lang,"control")}</Link>
-            <Link href="/settings">{t(lang,"settings")}</Link>
-            <Link href="/universes">{t(lang,"universes")}</Link>
-          </div>
-        </details>
-      </>:<>
-        <Link href="/login">Login</Link>
-        <Link href="/register">Register</Link>
-      </>}
-    </nav>
-
-    {universe&&<div className="navLanguage"><LanguageSwitch universeId={universe.id} language={lang}/></div>}
-  </header>;
+export default function Nav({language="de",signedIn=false,universeName,team}: {language?:AppLanguage;signedIn?:boolean;universeName?:string;team?:string}) {
+  const en=language==="en",path=usePathname();
+  const [open,setOpen]=useState(false);
+  const dialog=useRef<HTMLDialogElement>(null);
+  const toggle=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{setOpen(false);dialog.current?.close()},[path]);
+  useEffect(()=>{
+    const el=dialog.current;
+    if(open&&!el?.open)el?.showModal();
+    if(!open&&el?.open)el.close();
+    if(open){const previous=document.body.style.overflow;document.body.style.overflow="hidden";return ()=>{document.body.style.overflow=previous};}
+  },[open]);
+  const primary=[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Player":"Spieler"],["/media","News"],["/social","Social"],["/world",en?"The league":"Die Liga"]];
+  const groups=[
+    [en?"On the court":"Auf dem Court",[["/",en?"Today":"Heute"],["/schedule",en?"Schedule":"Spielplan"],["/pregame",en?"Pregame":"Vor dem Spiel"],["/playoffs","Playoffs"]]],
+    [en?"Your career":"Deine Karriere",[["/career",en?"Player file":"Spielerakte"],["/agency",en?"Agent & contracts":"Berater & Verträge"],["/awards","Awards"],["/trophy-room",en?"Trophy room":"Trophäen"]]],
+    [en?"Around the league":"Rund um die Liga",[["/world",en?"Career world":"Karrierewelt"],["/media","News"],["/social","Social"],["/interviews",en?"Press conferences":"Pressekonferenzen"],["/trades","Trades"]]],
+    [en?"Manage":"Verwalten",[["/admin",en?"Control room":"Verwaltung"],["/universes",en?"My careers":"Meine Karrieren"],["/settings",en?"Settings":"Einstellungen"]]],
+  ] as [string,string[][]][];
+  const active=(href:string)=>path===href || (href==="/schedule"&&path.startsWith("/game/"));
+  return <>
+    <a className="skipLink" href="#main">{en?"Skip to content":"Zum Inhalt"}</a>
+    <header className="masthead">
+      <div className="mastheadTop"><Link href={signedIn?"/universes":"/login"} className="edition">{universeName||"MyNBA"}{team&&<span> · {team}</span>}</Link><span>{en?"Your career journal":"Dein Karrierejournal"}</span></div>
+      <div className="mastheadMain"><Link className="brand" href={signedIn?"/":"/login"} aria-label="Career Universe"><span>CAREER</span><span className="brandSlash">/</span><span>UNIVERSE</span></Link>
+        {signedIn?<button ref={toggle} className="menuToggle" aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(true)}><span className="menuGlyph" aria-hidden="true">☰</span>{en?"Menu":"Menü"}</button>:<Link className="textLink" href={"/login?lang="+language}>{en?"Sign in":"Anmelden"} →</Link>}
+      </div>
+      {signedIn&&<nav className="primaryNav" aria-label={en?"Main navigation":"Hauptnavigation"}>{primary.map(([href,title])=><Link href={href} key={href} aria-current={active(href)?"page":undefined}>{title}</Link>)}<Link className="navEntry" href="/admin#game-entry">{en?"Enter game":"Spiel eintragen"}<span aria-hidden="true"> +</span></Link></nav>}
+    </header>
+    <dialog ref={dialog} className="navigationDialog" onCancel={()=>setOpen(false)} onClose={()=>{setOpen(false);toggle.current?.focus()}} onClick={e=>{if(e.target===e.currentTarget)setOpen(false)}} aria-label={en?"All sections":"Alle Bereiche"}>
+      <div className="menuHead"><strong>CAREER / UNIVERSE</strong><button className="closeButton" onClick={()=>setOpen(false)} aria-label={en?"Close menu":"Menü schließen"}>×</button></div>
+      <div className="menuGroups">{groups.map(([title,links])=><nav key={title} aria-label={title}><h2>{title}</h2>{links.map(([href,text])=><Link href={href} key={href} aria-current={active(href)?"page":undefined} onClick={()=>setOpen(false)}>{text}</Link>)}</nav>)}</div>
+    </dialog>
+  </>;
 }

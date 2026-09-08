@@ -1,91 +1,27 @@
+import {notFound} from "next/navigation";
 import {pageContext} from "@/lib/universe";
-import TeamBadge from "@/components/TeamBadge";
-import MediaCard from "@/components/MediaCard";
-import QuickGameEntry from "@/components/QuickGameEntry";
-import CompetitionBadge from "@/components/CompetitionBadge";
-import {pct} from "@/lib/format";
 import {langOf} from "@/lib/i18n";
+import {label,prose} from "@/lib/labels";
 import {ensurePregameCoverage} from "@/lib/world-engine";
-
+import {PageHeader,Section,MetricStrip,Meter,EmptyState} from "@/components/Editorial";
+import Scoreboard from "@/components/Scoreboard";
+import PregameBrief from "@/components/PregameBrief";
+import QuickGameEntry from "@/components/QuickGameEntry";
+import MediaCard from "@/components/MediaCard";
+import GenerateMediaButton from "@/components/GenerateMediaButton";
 export const dynamic="force-dynamic";
-
 export default async function Page({params}:{params:Promise<{id:string}>}){
-  const {id}=await params;
-  const {client,career,universe}=await pageContext();
-  const lang=langOf(universe),en=lang==="en";
-
-  const {data:g}=await client
-    .from("games")
-    .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
-    .eq("id",id).single();
-
-  if(!g)return <div>{en?"Game not found.":"Spiel nicht gefunden."}</div>;
-  if(g.universe_id&&g.universe_id!==universe.id)return <div className="card">{en?"This game belongs to another universe.":"Dieses Spiel gehört zu einem anderen Universe."}</div>;
-
-  const [{data:ug},{data:s},{data:n},{data:m},{data:stint},{data:grade},{data:storedPregame}]=await Promise.all([
-    client.from("universe_games").select("*").eq("universe_id",universe.id).eq("game_id",id).maybeSingle(),
-    client.from("player_game_stats").select("*,team:teams(*)").eq("career_id",career.id).eq("game_id",id).maybeSingle(),
-    client.from("game_notables").select("*").eq("career_id",career.id).eq("game_id",id),
-    client.from("media_posts").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).order("created_at",{ascending:false}),
-    client.from("team_stints").select("*").eq("career_id",career.id).lte("start_date",g.game_day).or("end_date.is.null,end_date.gte."+g.game_day).order("start_date",{ascending:false}).limit(1).maybeSingle(),
-    client.from("postgame_grades").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).maybeSingle(),
-    client.from("pregame_coverage").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).maybeSingle()
-  ]);
-
-  const status=ug?.status||"scheduled";
-  const awayScore=ug?.away_score??null;
-  const homeScore=ug?.home_score??null;
-  const teamId=stint?.team_id||career.current_team_id;
-  const canEnter=teamId===g.home_team_id||teamId===g.away_team_id;
-  const pregame=storedPregame|| (canEnter&&status!=="completed"?await ensurePregameCoverage(career,universe,g,lang):null);
-  const winner=status==="completed"
-    ?(Number(homeScore)>Number(awayScore)?g.home?.abbreviation:Number(awayScore)>Number(homeScore)?g.away?.abbreviation:null)
-    :null;
-
-  return <>
-    <section className="card gameOverview">
-      <div className="gameMeta gameMetaLogo"><CompetitionBadge stage={g.stage} small/><span>{g.game_day} · {g.stage} · {g.venue||"Arena TBA"} · {universe.name}</span></div>
-      <div className="gameHero">
-        <div className="gameTeam"><TeamBadge team={g.away}/><h2>{g.away?.city}<br/>{g.away?.name}</h2></div>
-        <div className="gameScore">{status==="completed"?String(awayScore)+" : "+String(homeScore):"VS"}</div>
-        <div className="gameTeam"><h2>{g.home?.city}<br/>{g.home?.name}</h2><TeamBadge team={g.home}/></div>
-      </div>
-      {canEnter&&status!=="completed"&&<a className="buttonLink gameEntryCta" href="#stats">{en?"Enter stats for this game ↓":"Stats für dieses Spiel eintragen ↓"}</a>}
-    </section>
-
-    {pregame&&<section className="panel pregameInline">
-      <span className="eyebrow">MATCHUP WATCH</span>
-      <h2>{pregame.headline}</h2><p>{pregame.body}</p>
-      <div className="card keyQuestion"><span className="eyebrow">{en?"KEY QUESTION":"SCHLÜSSELFRAGE"}</span><h3>{pregame.key_question}</h3></div>
-      <div className="expertPickGrid">{(pregame.expert_picks||[]).map((p:any)=><div className="expertPick" key={p.name}>
-        <b>{p.name}</b><strong>{p.pick}</strong><small>{p.reason}</small>
-        {winner&&<span className={p.pick===winner?"pickRight":"pickWrong"}>{p.pick===winner?"✓":"✕"}</span>}
-      </div>)}</div>
-    </section>}
-
-    {s&&<>
-      <div className="sectionHead"><h2>{s.team?.abbreviation} · {s.appearance_status}</h2></div>
-      <div className="boxline">
-        {[["MIN",s.minutes],["PTS",s.points],["REB",s.rebounds],["AST",s.assists],["STL",s.steals],["BLK",s.blocks],["TO",s.turnovers],["F",s.fouls],["FG",String(s.fgm)+"/"+String(s.fga)],["3PT",String(s.tpm)+"/"+String(s.tpa)],["FT",String(s.ftm)+"/"+String(s.fta)],["+/-",s.plus_minus]].map(([k,v])=><div key={String(k)}><strong>{v}</strong><span>{k}</span></div>)}
-      </div>
-      <div className="card"><b>FG {pct(s.fgm,s.fga)}</b><p>{s.story_notes}</p>{s.injury_note&&<p>Injury: {s.injury_note}</p>}</div>
-    </>}
-
-    {grade&&<section className="panel gradePanel">
-      <div className="gradeHero"><strong>{grade.overall_grade}</strong><div><span className="eyebrow">{en?"POSTGAME GRADE":"POSTGAME-NOTE"}</span><h2>{en?"Performance Report":"Leistungsbericht"}</h2><p>{grade.summary}</p></div></div>
-      <div className="gradeBars">
-        {[["Scoring",grade.scoring],["Playmaking",grade.playmaking],["Defense",grade.defense],[en?"Efficiency":"Effizienz",grade.efficiency],[en?"Discipline":"Disziplin",grade.discipline]].map(([k,v]:any)=><div key={k}><span>{k}<b>{v}/100</b></span><div className="progress"><i style={{width:String(v)+"%"}}/></div></div>)}
-      </div>
-    </section>}
-
-    {canEnter
-      ? <QuickGameEntry game={g} existingStat={s} existingResult={ug} existingNotables={n||[]} language={lang}/>
-      : <div className="card muted">{en?"This game is outside your team stint for this date and cannot be entered as a career game.":"Dieses Spiel gehört nicht zu deinem Team-Stint an diesem Datum und kann deshalb nicht als Karriere-Spiel eingetragen werden."}</div>
-    }
-
-    {(n||[]).length>0&&<><div className="sectionHead"><h2>{en?"Other Notables":"Andere Notables"}</h2></div>{n?.map((x:any)=><div className="card" key={x.id}><b>{x.player_name} · {x.team_abbreviation}</b><p>{x.note}</p></div>)}</>}
-
-    <div className="sectionHead"><h2>Coverage</h2></div>
-    <div className="mediaStack">{m?.map((x:any)=><MediaCard post={x} key={x.id}/>)}</div>
-  </>;
+ const {id}=await params;const {client,career,universe}=await pageContext(),lang=langOf(universe),en=lang==="en";
+ if(!/^[0-9a-f-]{36}$/i.test(id))notFound();const {data:g,error}=await client.from("games").select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)").eq("id",id).or(`universe_id.is.null,universe_id.eq.${universe.id}`).maybeSingle();if(error)throw error;if(!g)notFound();
+ const [{data:result},{data:s},{data:notables},{data:media},{data:stint},{data:grade},{data:stored},{data:settings}]=await Promise.all([
+ client.from("universe_games").select("*").eq("universe_id",universe.id).eq("game_id",id).maybeSingle(),client.from("player_game_stats").select("*,team:teams(*)").eq("career_id",career.id).eq("game_id",id).maybeSingle(),client.from("game_notables").select("*").eq("career_id",career.id).eq("game_id",id),client.from("media_posts").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).order("created_at",{ascending:false}),client.from("team_stints").select("team_id").eq("career_id",career.id).lte("start_date",g.game_day).or(`end_date.is.null,end_date.gte.${g.game_day}`).order("start_date",{ascending:false}).order("created_at",{ascending:false}).limit(1).maybeSingle(),client.from("postgame_grades").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).maybeSingle(),client.from("pregame_coverage").select("*").eq("career_id",career.id).eq("game_id",id).eq("language",lang).maybeSingle(),client.from("world_settings").select("auto_media").eq("career_id",career.id).maybeSingle()
+ ]);
+ const teamId=s?.team_id||stint?.team_id||career.current_team_id,canEnter=teamId===g.home_team_id||teamId===g.away_team_id,game={...g,status:result?.status||"scheduled",home_score:result?.home_score??null,away_score:result?.away_score??null};
+ const pregame=stored||(canEnter&&game.status!=="completed"?await ensurePregameCoverage(career,universe,g,lang):null);const winner=game.status==="completed"?(Number(game.home_score)>Number(game.away_score)?g.home?.abbreviation:g.away?.abbreviation):null;
+ return <><PageHeader title={`${g.away?.abbreviation} @ ${g.home?.abbreviation}`} subtitle={g.venue||undefined} actions={canEnter?<a className="textLink" href="#stats">{s?(en?"Correct entry":"Eintrag korrigieren"):(en?"Enter game":"Spiel eintragen")} ↓</a>:undefined}/><Scoreboard game={game} language={lang}/>
+ {s&&<Section title={`${career.player_name} · ${s.team?.abbreviation}`}><div className="appearanceLine"><strong>{label(s.appearance_status,lang)}</strong>{s.started&&<span>Starter</span>}{s.fouled_out&&<span>{en?"Fouled out":"Ausgefoult"}</span>}{s.ejected&&<span>{en?"Ejected":"Platzverweis"}</span>}{s.injured&&<span>{en?"Injured":"Verletzt"}</span>}</div>{s.appearance_status==="played"&&<MetricStrip items={[["MIN",s.minutes],["PTS",s.points],["REB",s.rebounds],["AST",s.assists],["STL",s.steals],["BLK",s.blocks],["TO",s.turnovers],["PF",s.fouls],["FG",`${s.fgm}/${s.fga}`],["3PT",`${s.tpm}/${s.tpa}`],["FT",`${s.ftm}/${s.fta}`],["+/-",s.plus_minus]].map(([key,value])=>({label:String(key),value}))}/>} {prose(s,"story_notes",lang)&&<p className="gameNotes">{prose(s,"story_notes",lang)}</p>}{prose(s,"injury_note",lang)&&<p className="injuryNote"><b>{en?"Medical note":"Verletzungsnotiz"}:</b> {prose(s,"injury_note",lang)}</p>}</Section>}
+ {grade&&s?.appearance_status==="played"&&<Section title={en?"The performance report":"Der Leistungsbericht"}><div className="gradePanel"><div className="gradeHero"><strong>{grade.overall_grade}</strong><p>{grade.summary}</p></div><div className="gradeBars">{[[en?"Scoring":"Punkteproduktion",grade.scoring],[en?"Playmaking":"Spielgestaltung",grade.playmaking],[en?"Defense":"Verteidigung",grade.defense],[en?"Efficiency":"Effizienz",grade.efficiency],[en?"Discipline":"Disziplin",grade.discipline]].map(([text,value])=><Meter key={String(text)} label={String(text)} value={Number(value)}/>)}</div></div></Section>}
+ <PregameBrief coverage={pregame} language={lang} winner={winner}/>{canEnter?<QuickGameEntry game={g} existingStat={s} existingResult={result} existingNotables={notables||[]} language={lang} autoMedia={settings?.auto_media!==false}/>:<EmptyState title={en?"Outside your team history":"Außerhalb deiner Teamhistorie"} detail={en?"Your player’s team does not take part in this game at this date.":"Das damalige Team deines Spielers nimmt an dieser Partie nicht teil."}/>}
+ {notables?.some(x=>x.notes_language===lang)&&<Section title={en?"Elsewhere in the box score":"Außerdem im Boxscore"}>{notables.filter(x=>x.notes_language===lang).map(x=><article className="railStory" key={x.id}><h3>{x.player_name} · {x.team_abbreviation}</h3><p>{x.note}</p></article>)}</Section>}
+ <Section title={en?"The game in the media":"Das Spiel in den Medien"}>{media?.length?<div className="mediaStack">{media.map(x=><MediaCard key={x.id} post={x}/>)}</div>:s?<GenerateMediaButton statId={s.id} language={lang}/>:<p className="muted">{en?"Coverage follows the final score.":"Die Berichte folgen dem Endstand."}</p>}</Section></>;
 }

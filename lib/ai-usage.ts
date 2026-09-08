@@ -19,20 +19,17 @@ type LogArgs={
 
 function num(v:any){const n=Number(v||0);return Number.isFinite(n)?n:0}
 
+// Standard, short-context rates verified 2026-09-08:
+// https://developers.openai.com/api/docs/models/gpt-5.6-luna
+// https://developers.openai.com/api/docs/models/gpt-5.4-mini
 export function pricingForModel(model:string){
-  const fallbackInput=num(process.env.OPENAI_INPUT_USD_PER_1M)||0.20;
-  const fallbackOutput=num(process.env.OPENAI_OUTPUT_USD_PER_1M)||1.20;
-
-  const table:Record<string,{input:number;output:number}>={
-    "gpt-5.6-luna":{input:0.20,output:1.20},
-    "gpt-5.4-mini":{input:0.15,output:0.60}
-  };
-  return table[model]||{input:fallbackInput,output:fallbackOutput};
+ const table:Record<string,{input:number;cached:number;output:number}>={"gpt-5.6-luna":{input:.20,cached:.02,output:1.20},"gpt-5.4-mini":{input:.75,cached:.075,output:4.50}};
+ if(process.env.OPENAI_INPUT_USD_PER_1M&&process.env.OPENAI_OUTPUT_USD_PER_1M)return {input:num(process.env.OPENAI_INPUT_USD_PER_1M),cached:num(process.env.OPENAI_CACHED_INPUT_USD_PER_1M||process.env.OPENAI_INPUT_USD_PER_1M),output:num(process.env.OPENAI_OUTPUT_USD_PER_1M)};
+ return table[model]||null;
 }
-
-export function estimateUsageCost(model:string,inputTokens:number,outputTokens:number){
-  const p=pricingForModel(model);
-  return Number(((inputTokens/1_000_000)*p.input+(outputTokens/1_000_000)*p.output).toFixed(6));
+export function estimateUsageCost(model:string,inputTokens:number,outputTokens:number,cachedTokens=0){
+ const p=pricingForModel(model);if(!p)return null;const cached=Math.min(inputTokens,Math.max(0,cachedTokens));
+ return Number((((inputTokens-cached)*p.input+cached*p.cached+outputTokens*p.output)/1_000_000).toFixed(6));
 }
 
 export async function logAiUsage(args:LogArgs){
@@ -40,7 +37,7 @@ export async function logAiUsage(args:LogArgs){
   const inputTokens=num(usage.input_tokens);
   const outputTokens=num(usage.output_tokens);
   const totalTokens=num(usage.total_tokens)||inputTokens+outputTokens;
-  const estimatedCostUsd=estimateUsageCost(args.model,inputTokens,outputTokens);
+  const estimatedCostUsd=estimateUsageCost(args.model,inputTokens,outputTokens,num(usage.input_tokens_details?.cached_tokens));
 
   const {error}=await db().from("ai_usage_logs").insert({
     career_id:args.careerId,
@@ -52,10 +49,10 @@ export async function logAiUsage(args:LogArgs){
     input_tokens:inputTokens,
     output_tokens:outputTokens,
     total_tokens:totalTokens,
-    estimated_cost_usd:estimatedCostUsd,
+    estimated_cost_usd:estimatedCostUsd??0,
     meta:{
       ...(args.meta||{}),
-      cachedTokens:num(usage.input_tokens_details?.cached_tokens)
+      priceKnown:estimatedCostUsd!==null,priceVerifiedOn:"2026-09-08",pricing:pricingForModel(args.model),cachedTokens:num(usage.input_tokens_details?.cached_tokens)
     }
   });
 

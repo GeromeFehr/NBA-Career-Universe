@@ -2,246 +2,46 @@
 import {useRef,useState} from "react";
 import {useRouter} from "next/navigation";
 import {optimizeImages} from "@/lib/image-optimize";
-
-const statKeys=[
-  "minutes","points","rebounds","assists","steals","blocks","turnovers","fouls",
-  "technical_fouls","flagrant_fouls","fgm","fga","tpm","tpa","ftm","fta","plus_minus"
-];
-
-const labels:Record<string,string>={
-  minutes:"MIN",points:"PTS",rebounds:"REB",assists:"AST",steals:"STL",blocks:"BLK",
-  turnovers:"TO",fouls:"PF",technical_fouls:"TECH",flagrant_fouls:"FLG",
-  fgm:"FGM",fga:"FGA",tpm:"3PM",tpa:"3PA",ftm:"FTM",fta:"FTA",plus_minus:"+/-"
-};
-
-function abbr(v:any){return String(v||"").trim().toUpperCase().replace(/[^A-Z]/g,"")}
-
-export default function QuickGameEntry({
-  game,
-  existingStat,
-  existingResult,
-  existingNotables=[],
-  language
-}:{game:any;existingStat:any;existingResult:any;existingNotables?:any[];language:"de"|"en"}){
-  const router=useRouter();
-  const formRef=useRef<HTMLFormElement>(null);
-  const [busy,setBusy]=useState(false);
-  const [scanBusy,setScanBusy]=useState(false);
-  const [msg,setMsg]=useState("");
-  const [confidence,setConfidence]=useState<Record<string,number>>({});
-  const [lastScanPayload,setLastScanPayload]=useState<{images:string[];imageMeta:any[]}|null>(null);
-  const [scanInfo,setScanInfo]=useState("");
-  const editing=Boolean(existingStat||existingResult);
-  const en=language==="en";
-  const criticalConfidence=["home_score","away_score","points","rebounds","assists","fgm","fga"];
-  const needsPrecision=Boolean(lastScanPayload)&&criticalConfidence.some(k=>Number(confidence[k]??0)<75);
-
-  function setField(name:string,value:any){
-    if(value==null||!formRef.current)return;
-    const el=formRef.current.elements.namedItem(name) as HTMLInputElement|null;
-    if(el)el.value=String(value);
-  }
-
-  async function requestScan(payload:{images:string[];imageMeta:any[]},precision:"low"|"high"){
-    setScanBusy(true);setMsg("");
-    try{
-      const r=await fetch("/api/admin/scoreboard-scan",{
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({...payload,expectedGameId:game.id,precision})
-      });
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-
-      const s=j.scan||{};
-      setConfidence(s.field_confidence||{});
-      const home=abbr(game.home?.abbreviation),away=abbr(game.away?.abbreviation);
-      let homeScore=s.home_score,awayScore=s.away_score;
-
-      if(!s.orientation_confident||homeScore==null||awayScore==null){
-        const a=abbr(s.team_a),b=abbr(s.team_b);
-        if(a===away){awayScore=s.team_a_score;homeScore=s.team_b_score}
-        else if(b===away){awayScore=s.team_b_score;homeScore=s.team_a_score}
-        else if(a===home){homeScore=s.team_a_score;awayScore=s.team_b_score}
-        else if(b===home){homeScore=s.team_b_score;awayScore=s.team_a_score}
-      }
-
-      setField("awayScore",awayScore);
-      setField("homeScore",homeScore);
-      for(const k of statKeys)setField(k,s.stats?.[k]);
-
-      setMsg(
-        `${en?"Screenshot recognized":"Screenshot erkannt"} · ${precision==="low"?(en?"economy mode":"Sparmodus"):(en?"high precision":"hohe Genauigkeit")} · Confidence ${s.confidence??0}%`+
-        (s.player_found?(en?" · Player stat line imported":" · Spieler-Statline übernommen"):(en?" · Please review player stat line":" · Spieler-Statline bitte prüfen"))
-      );
-    }catch(err:any){
-      setMsg(`${en?"Screenshot import error":"Fehler beim Screenshot-Import"}: ${err.message}`);
-    }finally{
-      setScanBusy(false);
-    }
-  }
-
-  async function scanScreenshots(files:File[]){
-    if(!files.length){setMsg(en?"Please select at least one image.":"Bitte mindestens ein Bild auswählen.");return}
-    const allowed=files.every(f=>["image/jpeg","image/png","image/webp","image/gif"].includes(f.type));
-    if(!allowed){setMsg(en?"Please use JPG, PNG, WEBP or GIF.":"Bitte JPG, PNG, WEBP oder GIF verwenden.");return}
-    setScanBusy(true);setMsg("");
-    try{
-      const optimized=await optimizeImages(files,2);
-      const payload={
-        images:optimized.map(x=>x.dataUrl),
-        imageMeta:optimized.map(x=>({
-          originalBytes:x.originalBytes,optimizedBytes:x.optimizedBytes,width:x.width,height:x.height
-        }))
-      };
-      setLastScanPayload(payload);
-      const before=optimized.reduce((a,x)=>a+x.originalBytes,0);
-      const after=optimized.reduce((a,x)=>a+x.optimizedBytes,0);
-      setScanInfo(`${optimized.length} ${en?"image(s)":"Bild(er)"} · ${Math.round(before/1024)} KB → ${Math.round(after/1024)} KB`);
-      await requestScan(payload,"low");
-    }catch(err:any){
-      setMsg(`${en?"Image optimization failed":"Bildoptimierung fehlgeschlagen"}: ${err.message}`);
-      setScanBusy(false);
-    }
-  }
-
-  async function submit(e:React.FormEvent<HTMLFormElement>){
-    e.preventDefault();
-    setBusy(true);setMsg("");
-    try{
-      const f=new FormData(e.currentTarget);
-      const stats:any={};
-      for(const k of statKeys) stats[k]=Number(f.get(k)||0);
-
-      const r=await fetch("/api/admin/game",{
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({
-          gameId:game.id,
-          awayScore:Number(f.get("awayScore")),
-          homeScore:Number(f.get("homeScore")),
-          appearanceStatus:f.get("appearanceStatus"),
-          stats,
-          started:f.get("started")==="on",
-          fouledOut:f.get("fouledOut")==="on",
-          ejected:f.get("ejected")==="on",
-          injured:f.get("injured")==="on",
-          injuryNote:f.get("injuryNote"),
-          storyNotes:f.get("storyNotes"),
-          notableText:f.get("notables"),
-          autoMedia:editing?false:f.get("autoMedia")==="on"
-        })
-      });
-      const j=await r.json().catch(()=>({}));
-      if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-      const base=editing?(en?"Game updated.":"Spiel aktualisiert."):(en?"Game saved.":"Spiel gespeichert.");
-      const preserved=editing?(en
-        ?" Existing news, social posts, storylines, rivalries and trade events were preserved."
-        :" Bestehende News, Social Posts, Storylines, Rivalries und Trade-Events wurden nicht neu erzeugt."):"";
-      setMsg((j.mediaWarning?base+" · "+j.mediaWarning:base)+preserved);
-      router.refresh();
-    }catch(err:any){
-      setMsg(`${en?"Error":"Fehler"}: ${err.message}`);
-    }finally{
-      setBusy(false);
-    }
-  }
-
-  return <section className="panel quickEntry" id="stats">
-    <div className="sectionHead">
-      <div>
-        <span className="eyebrow">{editing?"GAME EDITOR":"QUICK GAME ENTRY"}</span>
-        <h2>{editing?(en?"Edit game & stats":"Spiel & Stats bearbeiten"):(en?"Enter game directly":"Spiel direkt eintragen")}</h2>
-      </div>
-      <span className="pill">{game.away?.abbreviation} @ {game.home?.abbreviation}</span>
-    </div>
-
-    <div className="screenshotInline">
-      <div>
-        <b>{en?"Screenshot / phone photo":"Screenshot / Handyfoto"}</b>
-        <p className="muted">{en?"Start with one image. It is resized and scanned in economy mode; add a second only if important values are missing.":"Starte möglichst mit einem Bild. Es wird verkleinert und im Sparmodus gelesen; ein zweites Bild nur bei fehlenden Werten."}</p>
-      </div>
-      <label className="uploadButton">
-        {scanBusy?(en?"Analyzing…":"Analysiere…"):(en?"Choose 1–2 screenshot(s)":"1–2 Screenshot(s) auswählen")}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          multiple
-          capture="environment"
-          disabled={scanBusy}
-          onChange={e=>scanScreenshots(Array.from(e.target.files||[]))}
-        />
-      </label>
-    </div>
-
-    <p className="muted">
-      {editing
-        ?(en
-          ?"Correction mode: only the saved game data and deterministic derived stats are corrected. Existing news, social posts, interviews, rivalries, trade activity and storylines stay untouched."
-          :"Korrekturmodus: Es werden nur die gespeicherten Spielwerte und daraus berechenbare Werte korrigiert. Bestehende News, Social Posts, Interviews, Rivalries, Trade-Aktivität und Storylines bleiben unverändert.")
-        :(en
-          ?"Save the final score and your stat line here. Career stats, milestones and optional AI coverage are updated afterwards."
-          :"Endstand und deine Statline hier direkt speichern. Danach werden Karrierewerte, Milestones und auf Wunsch die KI-Berichterstattung aktualisiert.")}
-    </p>
-    {msg&&<div className="notice inlineNotice">{msg}</div>}
-    {scanInfo&&<p className="muted scanSavings">⚡ {scanInfo}</p>}
-    {Object.keys(confidence).length>0&&<div className="confidenceGrid">
-      {Object.entries(confidence).filter(([,v])=>Number(v)>0).map(([k,v])=><span className={`confidenceChip ${Number(v)<70?"low":Number(v)<90?"mid":"high"}`} key={k}>
-        <b>{k.replaceAll("_"," ")}</b><i>{v}%</i>
-      </span>)}
-    </div>}
-    {needsPrecision&&<button
-      type="button"
-      className="secondaryButton precisionRetry"
-      disabled={scanBusy}
-      onClick={()=>lastScanPayload&&requestScan(lastScanPayload,"high")}
-    >{en?"Recheck missing/uncertain values with high precision":"Fehlende/unsichere Werte präzise nachprüfen"}</button>}
-
-    <form ref={formRef} onSubmit={submit}>
-      <div className="grid2">
-        <label>{game.away?.abbreviation} · {en?"Away score":"Auswärts-Score"}
-          <input name="awayScore" type="number" min="0" required defaultValue={existingResult?.away_score??""}/>
-        </label>
-        <label>{game.home?.abbreviation} · {en?"Home score":"Heim-Score"}
-          <input name="homeScore" type="number" min="0" required defaultValue={existingResult?.home_score??""}/>
-        </label>
-      </div>
-
-      <label>{en?"Appearance status":"Einsatzstatus"}
-        <select name="appearanceStatus" defaultValue={existingStat?.appearance_status||"played"}>
-          <option value="played">{en?"Played":"Gespielt"}</option>
-          <option value="dnp_injury">{en?"DNP – injured":"DNP – verletzt"}</option>
-          <option value="dnp_coach">{en?"DNP – coach decision":"DNP – Coach"}</option>
-          <option value="suspended">{en?"Suspended":"Gesperrt"}</option>
-          <option value="inactive">{en?"Inactive":"Inaktiv"}</option>
-        </select>
-      </label>
-
-      <div className="statInputs">
-        {statKeys.map(k=><label key={k}>
-          <span>{labels[k]}</span>
-          <input name={k} type="number" step={k==="minutes"?"0.1":"1"} defaultValue={existingStat?.[k]??0}/>
-        </label>)}
-      </div>
-
-      <div className="checks">
-        <label><input type="checkbox" name="started" defaultChecked={Boolean(existingStat?.started)}/> Starter</label>
-        <label><input type="checkbox" name="fouledOut" defaultChecked={Boolean(existingStat?.fouled_out)}/>{en?" Fouled out":" Ausgefoult"}</label>
-        <label><input type="checkbox" name="ejected" defaultChecked={Boolean(existingStat?.ejected)}/> Ejected</label>
-        <label><input type="checkbox" name="injured" defaultChecked={Boolean(existingStat?.injured)}/>{en?" Injured":" Verletzt"}</label>
-        {!editing&&<label><input type="checkbox" name="autoMedia" defaultChecked/>{en?" Generate AI media automatically":" KI-Medien automatisch"}</label>}
-      </div>
-
-      <label>{en?"Injury / status":"Verletzung / Status"}<textarea name="injuryNote" defaultValue={existingStat?.injury_note||""}/></label>
-      <label>{en?"What happened? / Story notes":"Was ist passiert? / Story-Notizen"}
-        <textarea name="storyNotes" defaultValue={existingStat?.story_notes||existingResult?.story_notes||""}
-          placeholder={en?"Example: 18 points in the fourth, blocked the star, got a tech after trash talk…":"Beispiel: 18 Punkte im 4. Viertel, Star geblockt, Tech nach Trash Talk…"}/>
-      </label>
-      <label>{en?"Other notable players / box-score notes":"Andere auffällige Spieler / Boxscore-Notizen"}<textarea name="notables"
-        defaultValue={(existingNotables||[]).map((x:any)=>[x.player_name,x.team_abbreviation,x.note].filter(Boolean).join(" | ")).join("\n")}
-        placeholder={"Eine Zeile pro Spieler, z.B.\nStephen Curry | GSW | heißer Start"}/></label>
-
-      <button disabled={busy}>{busy?(en?"Saving…":"Speichere…"):editing?(en?"Save changes":"Änderungen speichern"):(en?"Complete game + save stats":"Spiel abschließen + Stats speichern")}</button>
-    </form>
-  </section>
+import {statKeys,statLabels} from "@/lib/game-input";
+import {normalizeAbbr} from "@/lib/team-map";
+import StatusMessage from "@/components/StatusMessage";
+import {prose} from "@/lib/labels";
+export default function QuickGameEntry({game,existingStat,existingResult,existingNotables=[],language,autoMedia=true}:{game:any;existingStat:any;existingResult:any;existingNotables?:any[];language:"de"|"en";autoMedia?:boolean}){
+ const router=useRouter(),formRef=useRef<HTMLFormElement>(null),en=language==="en",editing=Boolean(existingStat);
+ const [busy,setBusy]=useState(false),[scanning,setScanning]=useState(false),[message,setMessage]=useState(""),[tone,setTone]=useState<"error"|"success"|"warning"|"info">("info"),[status,setStatus]=useState(existingStat?.appearance_status||"played"),[confidence,setConfidence]=useState<Record<string,number>>({}),[lastImages,setLastImages]=useState<{images:string[];imageMeta:any[]}|null>(null),[scanInfo,setScanInfo]=useState(""),[review,setReview]=useState(false);
+ const lock=busy||scanning;
+ function field(name:string,value:unknown){const input=formRef.current?.elements.namedItem(name) as HTMLInputElement|null;if(input)input.value=value==null?"":String(value);}
+ async function requestScan(payload:{images:string[];imageMeta:any[]},precision:"low"|"high"){
+  setScanning(true);setMessage("");try{
+   const response=await fetch("/api/admin/scoreboard-scan",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...payload,expectedGameId:game.id,precision})});const data=await response.json();if(!response.ok)throw Error(data.error);
+   const scan=data.scan||{},home=normalizeAbbr(game.home?.abbreviation||""),away=normalizeAbbr(game.away?.abbreviation||"");
+   const a=normalizeAbbr(scan.team_a||""),b=normalizeAbbr(scan.team_b||"");let homeScore=null,awayScore=null;
+   if(a===home&&b===away){homeScore=scan.team_a_score;awayScore=scan.team_b_score;}
+   else if(a===away&&b===home){homeScore=scan.team_b_score;awayScore=scan.team_a_score;}
+   else if(scan.orientation_confident&&normalizeAbbr(scan.home_team||"")===home&&normalizeAbbr(scan.away_team||"")===away){homeScore=scan.home_score;awayScore=scan.away_score;}
+   field("homeScore",homeScore);field("awayScore",awayScore);
+   if(scan.player_found){for(const key of statKeys)if(!["technical_fouls","flagrant_fouls"].includes(key))field(key,scan.stats?.[key]);}
+   setConfidence(scan.field_confidence||{});setReview(true);setTone("warning");
+   setMessage(!scan.player_found?(en?"Your player was not found. Player values were not imported; please enter them manually.":"Dein Spieler wurde nicht gefunden. Bitte seine Werte manuell ergänzen."):homeScore===null||awayScore===null?(en?"The matchup or score could not be identified. Review the teams and enter the final score.":"Die Paarung oder der Endstand ist nicht eindeutig. Prüfe die Teams und ergänze das Ergebnis."):(en?"Values imported. Check them against the image and confirm below before saving.":"Werte übernommen. Gleiche sie mit dem Bild ab und bestätige die Prüfung vor dem Speichern."));
+  }catch(e){setTone("error");setMessage(e instanceof Error?e.message:String(e));}finally{setScanning(false);}
+ }
+ async function scan(files:File[]){
+  if(!files.length)return;if(files.length>2){setTone("error");setMessage(en?"Choose at most two images.":"Bitte höchstens zwei Bilder wählen.");return;}
+  setScanning(true);setMessage("");try{const optimized=await optimizeImages(files,2);const payload={images:optimized.map(x=>x.dataUrl),imageMeta:optimized.map(x=>({width:x.width,height:x.height,optimizedBytes:x.optimizedBytes}))};setLastImages(payload);setScanInfo(`${optimized.length} ${en?"image(s)":"Bild(er)"} · ${Math.round(optimized.reduce((n,x)=>n+x.optimizedBytes,0)/1024)} KB`);await requestScan(payload,"low");}catch(e){setTone("error");setMessage(e instanceof Error?e.message:String(e));setScanning(false);}
+ }
+ async function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();if(lock)return;setBusy(true);setMessage("");try{
+  const f=new FormData(e.currentTarget),stats=Object.fromEntries(statKeys.map(k=>[k,f.get(k)]));
+  const response=await fetch("/api/admin/game",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({gameId:game.id,expectedUpdatedAt:existingStat?.updated_at||null,homeScore:f.get("homeScore"),awayScore:f.get("awayScore"),appearanceStatus:status,stats,started:f.get("started")==="on",fouledOut:f.get("fouledOut")==="on",ejected:f.get("ejected")==="on",injured:f.get("injured")==="on",injuryNote:f.get("injuryNote"),storyNotes:f.get("storyNotes"),notableText:f.get("notables"),autoMedia:!editing&&f.get("autoMedia")==="on"})});
+  const data=await response.json();if(!response.ok)throw Error(data.error);setTone(data.mediaWarning?"warning":"success");setMessage((en?"Game saved.":"Spiel gespeichert.")+(data.mediaWarning?" "+data.mediaWarning:""));setReview(false);router.refresh();
+ }catch(e){setTone("error");setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
+ return <section className="quickEntry" id="stats"><div className="sectionHead"><h2>{editing?(en?"Correct the game record":"Den Spieleintrag korrigieren"):(en?"Put this game on record":"Dieses Spiel festhalten")}</h2><span>{game.away?.abbreviation} @ {game.home?.abbreviation}</span></div><div className="screenshotInline"><div><h3>{en?"Start with your box score":"Starte mit deinem Boxscore"}</h3><p>{en?"One image is usually enough. Images are resized before the economy scan. Add a second if scores and player stats are on separate screens.":"Ein Bild reicht meistens. Es wird vor der sparsamen Analyse verkleinert. Ein zweites hilft, wenn Ergebnis und Spielerwerte auf getrennten Ansichten stehen."}</p></div><label className="uploadButton">{scanning?(en?"Reading the image…":"Bild wird gelesen…"):(en?"Choose screenshots":"Screenshots auswählen")}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={lock} onChange={e=>scan(Array.from(e.target.files||[]))}/></label></div>
+ {scanInfo&&<p className="muted">{scanInfo}</p>}{message&&<StatusMessage tone={tone}>{message}</StatusMessage>}
+ {Object.keys(confidence).length>0&&<details className="scanDetails"><summary>{en?"Recognition confidence by field":"Erkennungssicherheit je Wert"}</summary><dl className="confidenceGrid">{Object.entries(confidence).map(([k,v])=><div key={k} className={v<75?"low":"high"}><dt>{statLabels[k]||(k==="home_score"?(en?"Home":"Heim"):k==="away_score"?(en?"Away":"Auswärts"):k)}</dt><dd>{v}%</dd></div>)}</dl><p>{en?"These are model estimates, not guaranteed accuracy.":"Die Werte sind Schätzungen des Modells, keine garantierte Genauigkeit."}</p></details>}
+ {lastImages&&Object.values(confidence).some(v=>v<75)&&<button className="secondaryButton" disabled={lock} onClick={()=>requestScan(lastImages,"high")}>{en?"Recheck with higher image detail (extra request)":"Mit höherer Bildauflösung nachprüfen (zusätzliche Anfrage)"}</button>}
+ {editing&&<p className="formHelp">{en?"Corrections update the game record and derived statistics. The career journal keeps previously published stories and decisions.":"Korrekturen aktualisieren den Spieleintrag und berechnete Statistiken. Bereits veröffentlichte Geschichten und Entscheidungen bleiben in der Chronik."}</p>}
+ <form ref={formRef} onSubmit={submit}><fieldset disabled={lock}><legend className="srOnly">{en?"Game result and player statistics":"Spielergebnis und Spielerstatistik"}</legend><div className="grid2"><label>{game.away?.abbreviation} · {en?"Away score":"Auswärtspunkte"}<input name="awayScore" type="number" min="0" max="9999" required defaultValue={existingResult?.away_score??""}/></label><label>{game.home?.abbreviation} · {en?"Home score":"Heimpunkte"}<input name="homeScore" type="number" min="0" max="9999" required defaultValue={existingResult?.home_score??""}/></label></div><label>{en?"Appearance":"Einsatz"}<select name="appearanceStatus" value={status} onChange={e=>setStatus(e.target.value)}><option value="played">{en?"Played":"Gespielt"}</option><option value="dnp_injury">{en?"DNP – injury":"DNP – Verletzung"}</option><option value="dnp_coach">{en?"DNP – coach decision":"DNP – Trainerentscheidung"}</option><option value="suspended">{en?"Suspended":"Gesperrt"}</option><option value="inactive">{en?"Inactive":"Inaktiv"}</option></select></label>
+ {status!=="played"&&<StatusMessage tone="info">{en?"No appearance: production values are saved as zero and excluded from per-game averages. Describe an ejection or injury below.":"Ohne Einsatz werden Leistungswerte mit null gespeichert und nicht in die Durchschnitte eingerechnet. Einen Platzverweis oder eine Verletzung kannst du unten festhalten."}</StatusMessage>}
+ <fieldset disabled={status!=="played"}><legend>{en?"Your stat line":"Deine Statline"}</legend><div className="statInputs">{statKeys.map(k=><label key={k}>{statLabels[k]}<input name={k} type="number" min={k==="plus_minus"?-9999:0} step={k==="minutes"?"0.1":"1"} required={status==="played"} defaultValue={existingStat?.[k]??0}/></label>)}</div></fieldset><div className="checks"><label><input type="checkbox" name="started" disabled={status!=="played"} defaultChecked={Boolean(existingStat?.started)}/> Starter</label><label><input type="checkbox" name="fouledOut" disabled={status!=="played"} defaultChecked={Boolean(existingStat?.fouled_out)}/> {en?"Fouled out":"Ausgefoult"}</label><label><input type="checkbox" name="ejected" defaultChecked={Boolean(existingStat?.ejected)}/> {en?"Ejected":"Platzverweis"}</label><label><input type="checkbox" name="injured" defaultChecked={Boolean(existingStat?.injured)}/> {en?"Injured":"Verletzt"}</label></div>
+ <label>{en?"Injury or status note":"Verletzung oder Statusnotiz"}<textarea name="injuryNote" maxLength={2000} defaultValue={prose(existingStat,"injury_note",language)}/></label><label>{en?"Your game notes":"Deine Spielnotizen"}<textarea name="storyNotes" maxLength={12000} defaultValue={prose(existingStat||existingResult,"story_notes",language)} placeholder={en?"The run in the fourth. The defensive adjustment. The moment that mattered.":"Der Lauf im vierten Viertel. Die defensive Anpassung. Der entscheidende Moment."}/></label><label>{en?"Other notable players":"Weitere auffällige Spieler"}<textarea name="notables" maxLength={12000} defaultValue={existingNotables.filter(x=>!x.notes_language||x.notes_language===language).map(x=>`${x.player_name} | ${x.team_abbreviation} | ${x.note}`).join("\n")} placeholder={en?"One player per line: Name | Team | Note":"Eine Zeile je Spieler: Name | Team | Notiz"}/></label>
+ {!editing&&<label className="checkRow"><input type="checkbox" name="autoMedia" defaultChecked={autoMedia}/> {en?"Generate reports and social reactions after saving":"Nach dem Speichern Berichte und Social-Reaktionen erzeugen"}</label>}{review&&<label className="checkRow"><input type="checkbox" required/> {en?"I checked the imported values against the image.":"Ich habe die übernommenen Werte mit dem Bild abgeglichen."}</label>}<button disabled={lock}>{busy?(en?"Saving…":"Speichere…"):editing?(en?"Save correction":"Korrektur speichern"):(en?"Save final score & stats":"Endstand & Stats speichern")}</button></fieldset></form></section>;
 }

@@ -1,3 +1,4 @@
+import {apiFailure} from "@/lib/http";
 import {NextResponse} from "next/server";
 import {requireAdmin,apiStatus} from "@/lib/auth";
 import {refreshLegacyScore} from "@/lib/world-engine";
@@ -18,6 +19,6 @@ export async function POST(req:Request){
     const legacy=await refreshLegacyScore(career.id);
     return NextResponse.json({ok:true,trophy:data,legacy});
   }catch(e){
-    return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
+    return apiFailure(e);
   }
 }

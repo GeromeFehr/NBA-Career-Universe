@@ -1,23 +1,6 @@
 import Link from "next/link";
-import { currentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-
-export default async function Page({ searchParams }:{ searchParams:Promise<{error?:string}> }) {
-  if (await currentUser()) redirect("/universes");
-  const q = await searchParams;
-
-  return <div className="login">
-    <span className="eyebrow">CREATE ACCOUNT</span>
-    <h1>Dein NBA Universe</h1>
-    <p className="muted">Ein Account kann mehrere komplett getrennte MyNBA-Karrieren verwalten.</p>
-    {q.error === "password" && <p className="loginError">Das Passwort muss mindestens 8 Zeichen lang sein.</p>}
-    {q.error === "signup" && <p className="loginError">Registrierung fehlgeschlagen. Prüfe E-Mail und Passwort.</p>}
-    <form action="/api/auth/register" method="post">
-      <label>Name optional<input name="displayName" autoComplete="name"/></label>
-      <label>E-Mail<input name="email" type="email" autoComplete="email" required/></label>
-      <label>Passwort<input name="password" type="password" minLength={8} autoComplete="new-password" required/></label>
-      <button>Account erstellen</button>
-    </form>
-    <p className="muted">Schon registriert? <Link href="/login">Zum Login →</Link></p>
-  </div>;
-}
+import {currentUser} from "@/lib/auth";
+import {uiLanguage} from "@/lib/ui-language";
+import {redirect} from "next/navigation";
+import StatusMessage from "@/components/StatusMessage";
+export default async function Page({searchParams}:{searchParams:Promise<{error?:string}>}){if(await currentUser())redirect("/universes");const q=await searchParams,lang=await uiLanguage(),en=lang==="en";return <div className="authPage"><div className="authStatement"><span>01 / {en?"THE BEGINNING":"DER ANFANG"}</span><h1>{en?<>Put your name<br/>on the roster.</>:<>Dein Name.<br/>Auf dem Trikot.</>}</h1><p>{en?"Build a persistent world around your MyNBA player. Every career has its own record.":"Baue eine dauerhafte Welt rund um deinen MyNBA-Spieler. Jede Karriere bekommt ihre eigene Chronik."}</p><div className="courtMark" aria-hidden="true"><span>CU</span></div></div><section className="authForm"><h2>{en?"Create your account":"Dein Konto erstellen"}</h2>{q.error&&<StatusMessage tone="error">{q.error==="password"?(en?"Use at least 8 characters for your password.":"Verwende mindestens 8 Zeichen für dein Passwort."):(en?"Registration failed. Check your details and try again.":"Registrierung fehlgeschlagen. Prüfe deine Angaben und versuche es erneut.")}</StatusMessage>}<form action="/api/auth/register" method="post"><input name="language" type="hidden" value={lang}/><label>{en?"Name (optional)":"Name (optional)"}<input name="displayName" autoComplete="name" maxLength={100}/></label><label>{en?"Email":"E-Mail"}<input name="email" type="email" autoComplete="email" required/></label><label>{en?"Password":"Passwort"}<input name="password" type="password" minLength={8} autoComplete="new-password" required/></label><button>{en?"Create account":"Konto erstellen"} →</button></form><p>{en?"Already on the roster?":"Schon dabei?"} <Link href={`/login?lang=${lang}`}>{en?"Sign in":"Anmelden"}</Link></p><Link className="languageLink" href={`/register?lang=${en?"de":"en"}`}>{en?"Deutsch":"English"}</Link></section></div>;}

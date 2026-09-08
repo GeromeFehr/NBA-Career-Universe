@@ -1,3 +1,5 @@
+import {uiLanguage} from "@/lib/ui-language";
+import {PageHeader} from "@/components/Editorial";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,6 +11,7 @@ export default async function Page() {
   const user = await currentUser();
   if (!user) redirect("/login");
 
+  const lang=await uiLanguage(),en=lang==="en";
   const client = db();
   const [{data:universes},{data:legacy},{data:teams},{data:season}] = await Promise.all([
     client.from("universes")
@@ -24,12 +27,9 @@ export default async function Page() {
   ]);
 
   return <>
-    <div className="sectionHead">
-      <div><span className="eyebrow">MULTI-UNIVERSE HUB</span><h1>Meine Karrieren</h1></div>
-      <form action="/api/auth/logout" method="post"><button>Logout</button></form>
-    </div>
-    <p className="muted">Jede Karriere besitzt eigene Spielstände, Stats, Trades, Storylines, Medien, Verletzungen und Ergebnisse.</p>
+    <PageHeader title={en?"My careers":"Meine Karrieren"} subtitle={en?"Every career has its own games, stories and decisions.":"Jede Karriere hat ihre eigenen Spiele, Geschichten und Entscheidungen."} actions={<form action="/api/auth/logout" method="post"><button className="secondaryButton">{en?"Sign out":"Abmelden"}</button></form>}/>
     <UniverseManager
+      language={lang}
       email={user.email||""}
       universes={universes||[]}
       legacy={legacy||[]}

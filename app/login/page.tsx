@@ -1,22 +1,6 @@
 import Link from "next/link";
-import { currentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-
-export default async function Page({ searchParams }:{ searchParams:Promise<{error?:string;message?:string}> }) {
-  if (await currentUser()) redirect("/universes");
-  const q = await searchParams;
-
-  return <div className="login">
-    <span className="eyebrow">NBA CAREER UNIVERSE</span>
-    <h1>Anmelden</h1>
-    <p className="muted">Jeder Account hat seine eigenen, voneinander getrennten MyNBA-Karrieren.</p>
-    {q.error && <p className="loginError">E-Mail oder Passwort ist nicht korrekt.</p>}
-    {q.message === "confirm" && <p className="notice">Account erstellt. Falls E-Mail-Bestätigung aktiv ist, bestätige zuerst den Link aus deiner Mail.</p>}
-    <form action="/api/auth/login" method="post">
-      <label>E-Mail<input name="email" type="email" autoComplete="email" required autoFocus/></label>
-      <label>Passwort<input name="password" type="password" autoComplete="current-password" required/></label>
-      <button>Anmelden</button>
-    </form>
-    <p className="muted">Noch kein Account? <Link href="/register">Jetzt registrieren →</Link></p>
-  </div>;
-}
+import {currentUser} from "@/lib/auth";
+import {uiLanguage} from "@/lib/ui-language";
+import {redirect} from "next/navigation";
+import StatusMessage from "@/components/StatusMessage";
+export default async function Page({searchParams}:{searchParams:Promise<{error?:string;message?:string}>}){if(await currentUser())redirect("/universes");const q=await searchParams,lang=await uiLanguage(),en=lang==="en";return <div className="authPage"><div className="authStatement"><span>01 / {en?"THE PLAYER":"DER SPIELER"}</span><h1>{en?<>Your game.<br/>Your story.</>:<>Dein Spiel.<br/>Deine Geschichte.</>}</h1><p>{en?"A career is more than its box scores. Pick up where you left off.":"Eine Karriere ist mehr als ihre Boxscores. Schreib dort weiter, wo du aufgehört hast."}</p><div className="courtMark" aria-hidden="true"><span>CU</span></div></div><section className="authForm"><h2>{en?"Back in the game":"Zurück im Spiel"}</h2>{q.error&&<StatusMessage tone="error">{en?"Sign-in failed. Check your email and password.":"Anmeldung fehlgeschlagen. Prüfe E-Mail und Passwort."}</StatusMessage>}{q.message==="confirm"&&<StatusMessage tone="success">{en?"Your account is ready. Check your inbox to confirm your email.":"Dein Konto ist angelegt. Bestätige die E-Mail-Adresse über dein Postfach."}</StatusMessage>}<form action="/api/auth/login" method="post"><input name="language" type="hidden" value={lang}/><label>{en?"Email":"E-Mail"}<input name="email" type="email" autoComplete="email" required/></label><label>{en?"Password":"Passwort"}<input name="password" type="password" autoComplete="current-password" required/></label><button>{en?"Sign in":"Anmelden"} →</button></form><p>{en?"First season here?":"Deine erste Saison hier?"} <Link href={`/register?lang=${lang}`}>{en?"Create account":"Konto erstellen"}</Link></p><Link className="languageLink" href={`/login?lang=${en?"de":"en"}`}>{en?"Deutsch":"English"}</Link></section></div>;}

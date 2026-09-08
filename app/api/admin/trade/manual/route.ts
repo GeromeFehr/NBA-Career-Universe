@@ -1,2 +1,3 @@
+import {apiFailure} from "@/lib/http";
 import {NextResponse} from "next/server";import {requireAdmin,apiStatus} from "@/lib/auth";import {moveTeam} from "@/lib/trade";
-export async function POST(req:Request){try{const {career}=await requireAdmin();const b=await req.json();await moveTeam(career.id,b.toTeamId,b.date||career.universe_date,b.notes||"Manueller MyNBA-Teamwechsel.");return NextResponse.json({ok:true})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)})}}
+export async function POST(req:Request){try{const {career}=await requireAdmin();const b=await req.json();await moveTeam(career.id,b.toTeamId,b.date||career.universe_date,b.notes||"Manueller MyNBA-Teamwechsel.");return NextResponse.json({ok:true})}catch(e){return apiFailure(e)}}

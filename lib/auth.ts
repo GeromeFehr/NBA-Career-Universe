@@ -1,14 +1,15 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { authDb, hasAuthConfig } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 
-export async function currentUser() {
+export const currentUser = cache(async function currentUser() {
   if (!hasAuthConfig()) return null;
   const client = await authDb();
   const { data, error } = await client.auth.getUser();
   if (error) return null;
   return data.user ?? null;
-}
+});
 
 export async function requireUser() {
   const user = await currentUser();

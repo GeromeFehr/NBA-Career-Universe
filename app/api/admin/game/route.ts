@@ -1,133 +1,24 @@
 import {NextResponse} from "next/server";
-import {requireAdmin,apiStatus} from "@/lib/auth";
+import {requireAdmin} from "@/lib/auth";
+import {parseGameInput} from "@/lib/game-input";
+import {readJson,apiFailure} from "@/lib/http";
+import {jsonObject} from "@/lib/data";
 import {detectMilestones} from "@/lib/story";
 import {generateGameMedia} from "@/lib/ai";
 import {refreshDerivedAfterStatEdit,updateUniverseAfterGame} from "@/lib/world-engine";
-
-export async function POST(req:Request){
-  try{
-    const {career,universe,client}=await requireAdmin();
-    const b=await req.json();
-    const {data:game}=await client.from("games").select("*").eq("id",b.gameId).single();
-    if(!game)return NextResponse.json({error:"Spiel nicht gefunden"},{status:404});
-    if(game.universe_id&&game.universe_id!==universe.id)return NextResponse.json({error:"Dieses manuelle Spiel gehört zu einem anderen Universe."},{status:403});
-
-    const {data:stint}=await client.from("team_stints").select("*")
-      .eq("career_id",career.id)
-      .lte("start_date",game.game_day)
-      .or(`end_date.is.null,end_date.gte.${game.game_day}`)
-      .order("start_date",{ascending:false})
-      .limit(1)
-      .maybeSingle();
-
-    const teamId=stint?.team_id||career.current_team_id;
-    if(teamId!==game.home_team_id&&teamId!==game.away_team_id){
-      return NextResponse.json({error:"Dein Team war an diesem Datum nicht in diesem Spiel."},{status:400});
-    }
-
-    const [{data:existingStatBefore},{data:existingResultBefore}]=await Promise.all([
-      client.from("player_game_stats").select("*").eq("career_id",career.id).eq("game_id",game.id).maybeSingle(),
-      client.from("universe_games").select("*").eq("universe_id",universe.id).eq("game_id",game.id).maybeSingle()
-    ]);
-    const isEdit=Boolean(existingStatBefore||existingResultBefore?.status==="completed");
-
-    const homeScore=Number(b.homeScore),awayScore=Number(b.awayScore);
-    const {error:gameErr}=await client.from("universe_games").upsert({
-      universe_id:universe.id,
-      game_id:game.id,
-      home_score:homeScore,
-      away_score:awayScore,
-      status:"completed",
-      story_notes:b.storyNotes||null,
-      completed_at:new Date().toISOString(),
-      updated_at:new Date().toISOString()
-    },{onConflict:"universe_id,game_id"});
-    if(gameErr)throw gameErr;
-
-    const s=b.stats||{};
-    const statPayload:any={
-      career_id:career.id,game_id:game.id,team_id:teamId,appearance_status:b.appearanceStatus||"played",
-      minutes:Number(s.minutes||0),points:Number(s.points||0),rebounds:Number(s.rebounds||0),assists:Number(s.assists||0),
-      steals:Number(s.steals||0),blocks:Number(s.blocks||0),turnovers:Number(s.turnovers||0),fouls:Number(s.fouls||0),
-      technical_fouls:Number(s.technical_fouls||0),flagrant_fouls:Number(s.flagrant_fouls||0),fgm:Number(s.fgm||0),
-      fga:Number(s.fga||0),tpm:Number(s.tpm||0),tpa:Number(s.tpa||0),ftm:Number(s.ftm||0),fta:Number(s.fta||0),
-      plus_minus:Number(s.plus_minus||0),started:Boolean(b.started),fouled_out:Boolean(b.fouledOut)||Number(s.fouls||0)>=6,
-      ejected:Boolean(b.ejected),injured:Boolean(b.injured),injury_note:b.injuryNote||null,story_notes:b.storyNotes||null,
-      updated_at:new Date().toISOString()
-    };
-
-    const {data:stat,error}=await client.from("player_game_stats").upsert(statPayload,{onConflict:"career_id,game_id"}).select("*").single();
-    if(error||!stat)throw error||new Error("Stat line could not be saved");
-
-    await client.from("game_notables").delete().eq("career_id",career.id).eq("game_id",game.id);
-    const lines=String(b.notableText||"").split(/\r?\n/).map((x:string)=>x.trim()).filter(Boolean);
-    if(lines.length){
-      const rows=lines.map((line:string)=>{
-        const [player_name="",team_abbreviation="",...rest]=line.split("|").map(x=>x.trim());
-        return {career_id:career.id,game_id:game.id,player_name,team_abbreviation,note:rest.join(" | ")||"Notable performance"};
-      });
-      const {error:notableErr}=await client.from("game_notables").insert(rows);
-      if(notableErr)throw notableErr;
-    }
-
-    const {data:sourceInjury}=await client.from("injuries").select("*")
-      .eq("career_id",career.id).eq("source_game_id",game.id).maybeSingle();
-    if(statPayload.injured&&statPayload.injury_note){
-      const injuryPayload={career_id:career.id,start_date:game.game_day,injury:statPayload.injury_note,severity:sourceInjury?.severity||"unknown",status:sourceInjury?.status||"active",source_game_id:game.id};
-      if(sourceInjury)await client.from("injuries").update(injuryPayload).eq("id",sourceInjury.id);
-      else await client.from("injuries").insert(injuryPayload);
-    }else if(isEdit&&sourceInjury){
-      await client.from("injuries").delete().eq("id",sourceInjury.id);
-    }
-
-    if(isEdit)await client.from("milestones").delete().eq("career_id",career.id).eq("game_id",game.id);
-    const milestones=await detectMilestones(career.id,stat);
-    const lang=universe.language==="en"?"en":"de";
-    const won=teamId===game.home_team_id?homeScore>awayScore:awayScore>homeScore;
-    const lost=teamId===game.home_team_id?homeScore<awayScore:awayScore<homeScore;
-    const result=won?"win":lost?"loss":"unknown";
-    const eventPayload={
-      event_date:game.game_day,event_type:"game",
-      title:lang==="en"?`${awayScore}-${homeScore} · Game completed`:`${awayScore}-${homeScore} · Spiel abgeschlossen`,
-      description:b.storyNotes||`${stat.points} PTS, ${stat.rebounds} REB, ${stat.assists} AST, ${stat.blocks} BLK`,
-      metadata:{game_id:game.id,stat_id:stat.id,universe_id:universe.id},
-      language:lang
-    };
-    if(isEdit){
-      const {data:event}=await client.from("career_events").select("id")
-        .eq("career_id",career.id).eq("event_type","game")
-        .contains("metadata",{game_id:game.id}).maybeSingle();
-      if(event)await client.from("career_events").update(eventPayload).eq("id",event.id);
-    }else{
-      await client.from("career_events").insert({career_id:career.id,...eventPayload});
-      await Promise.all([
-        client.from("career_profiles").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",career.id),
-        client.from("world_settings").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("career_id",career.id),
-        client.from("universes").update({universe_date:game.game_day,updated_at:new Date().toISOString()}).eq("id",universe.id)
-      ]);
-    }
-
-    const world=isEdit
-      ?await refreshDerivedAfterStatEdit({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat})
-      :await updateUniverseAfterGame({career,universe,game:{...game,home_score:homeScore,away_score:awayScore},stat,result});
-    let media:any[]=[];
-    let mediaWarning:string|null=null;
-    if(!isEdit&&b.autoMedia!==false){
-      try{
-        media=await generateGameMedia(stat.id);
-      }catch(err){
-        mediaWarning=lang==="en"
-          ?"Stats were saved, but media coverage could not be refreshed."
-          :"Stats wurden gespeichert, aber die Medienberichte konnten nicht aktualisiert werden.";
-        console.error("Optional media generation failed",err);
-      }
-    }
-    return NextResponse.json({
-      ok:true,statId:stat.id,milestones,mediaCount:media.length,world,mediaWarning,
-      mode:isEdit?"edit":"create",
-      preservedExistingContent:isEdit
-    });
-  }catch(e){
-    return NextResponse.json({error:e instanceof Error?e.message:String(e)},{status:apiStatus(e)});
-  }
-}
+export const maxDuration=60;
+export async function POST(req:Request){try{
+ const {user,career,universe,client}=await requireAdmin();const b=await readJson(req);const payload=parseGameInput(b);
+ const {data,error}=await client.rpc("save_career_game",{p_actor:user.id,p_career:career.id,p_game:payload.gameId,p_payload:payload});if(error)throw error;
+ const saved=jsonObject(data),stat=saved.stat,game=saved.game,isEdit=Boolean(saved.isEdit),en=universe.language==="en";
+ const warnings:string[]=[];let mediaCount=0;
+ try{
+  await detectMilestones(career.id,stat);
+  const settled=await client.rpc("settle_career_contracts",{p_actor:user.id,p_career:career.id});if(settled.error)throw settled.error;
+  const won=stat.team_id===game.home_team_id?game.home_score>game.away_score:game.away_score>game.home_score;
+  if(isEdit)await refreshDerivedAfterStatEdit({career,universe,game,stat});else await updateUniverseAfterGame({career,universe,game,stat,result:won?"win":"loss"});
+ }catch(error){console.error("Derived game update failed",error);warnings.push(en?"The game is saved. Refresh the derived career values in Settings.":"Das Spiel ist gespeichert. Berechne die abgeleiteten Karrierewerte in den Einstellungen neu.");}
+ const {data:settings}=await client.from("world_settings").select("auto_media").eq("career_id",career.id).maybeSingle();
+ if(!isEdit&&b.autoMedia!==false&&settings?.auto_media!==false){try{mediaCount=(await generateGameMedia(stat.id)).length;}catch(error){console.error("Optional coverage failed",error);warnings.push(en?"Media coverage is unavailable. You can generate it later from this game.":"Die Berichterstattung fehlt noch. Du kannst sie später auf dieser Spielseite erzeugen.");}}
+ return NextResponse.json({ok:true,statId:stat.id,mediaCount,mode:isEdit?"edit":"create",mediaWarning:warnings.join(" ")||null});
+}catch(e){return apiFailure(e);}}

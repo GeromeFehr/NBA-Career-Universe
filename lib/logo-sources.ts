@@ -46,7 +46,7 @@ export const EVENT_LOGO_PAGES:Record<string,string>={
 
 export function competitionKey(stage?:string){
   const s=String(stage||"").toLowerCase();
-  if(s.includes("final"))return "FINALS";
+  if(s.includes("nba finals")||s==="finals")return "FINALS";
   if(s.includes("cup"))return "CUP";
   if(s.includes("all-star")||s.includes("all star"))return "ALLSTAR";
   if(s.includes("playoff")||s.includes("play-in")||s.includes("conference"))return "PLAYOFFS";

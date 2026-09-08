@@ -3,34 +3,13 @@ import {useMemo,useState} from "react";
 import Link from "next/link";
 import TeamBadge from "@/components/TeamBadge";
 import CompetitionBadge from "@/components/CompetitionBadge";
-
-export default function ScheduleExplorer({
-  games,teams,universeDate,language
-}:{games:any[];teams:any[];universeDate:string;language:"de"|"en"}){
-  const [team,setTeam]=useState("ALL"),[status,setStatus]=useState("ALL"),[month,setMonth]=useState("ALL"),[q,setQ]=useState("");
-  const months=useMemo(()=>Array.from(new Set(games.map(g=>g.game_day?.slice(0,7)).filter(Boolean))).sort(),[games]);
-  const filtered=useMemo(()=>games.filter(g=>{
-    const ab=[g.home?.abbreviation,g.away?.abbreviation];
-    const names=`${g.home?.city||""} ${g.home?.name||""} ${g.away?.city||""} ${g.away?.name||""}`.toLowerCase();
-    return (team==="ALL"||ab.includes(team))&&(status==="ALL"||g.status===status)&&(month==="ALL"||g.game_day?.startsWith(month))&&(!q||names.includes(q.toLowerCase())||ab.join(" ").toLowerCase().includes(q.toLowerCase()));
-  }),[games,team,status,month,q]);
-
-  const en=language==="en";
-  return <section>
-    <div className="filterbar">
-      <select value={team} onChange={e=>setTeam(e.target.value)}><option value="ALL">{en?"All Teams":"Alle Teams"}</option>{teams.map(t=><option key={t.id}>{t.abbreviation}</option>)}</select>
-      <select value={month} onChange={e=>setMonth(e.target.value)}><option value="ALL">{en?"All Months":"Alle Monate"}</option>{months.map(m=><option key={m}>{m}</option>)}</select>
-      <select value={status} onChange={e=>setStatus(e.target.value)}><option value="ALL">{en?"All Status":"Alle Status"}</option><option value="scheduled">{en?"Scheduled":"Geplant"}</option><option value="completed">Final</option></select>
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder={en?"Search team…":"Team suchen…"}/>
-    </div>
-    <div className="scheduleList">
-      {filtered.map(g=><Link href={g.status==="completed"?`/game/${g.id}`:`/game/${g.id}#stats`} key={g.id} className={`scheduleRow ${g.game_day===universeDate?"todayRow":""}`}>
-        <div><b>{g.game_day}</b><small>{new Date(g.game_date).toLocaleTimeString(en?"en-US":"de-DE",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Berlin"})}</small></div>
-        <div className="matchup"><TeamBadge team={g.away} small/><strong>{g.away?.city} {g.away?.name}</strong><span>@</span><TeamBadge team={g.home} small/><strong>{g.home?.city} {g.home?.name}</strong></div>
-        <div className="score">{g.status==="completed"?`${g.away_score} : ${g.home_score}`:<span className="scheduleAction">{en?"Enter stats →":"Stats →"}</span>}</div>
-        <div className="competitionCell"><CompetitionBadge stage={g.stage} small/><span className="pill">{g.stage||"Regular"}</span></div>
-      </Link>)}
-      {!filtered.length&&<div className="empty">{en?"No games for this filter.":"Keine Spiele für diesen Filter."}</div>}
-    </div>
-  </section>
+import {localDate} from "@/lib/format";
+import {stageLabel} from "@/lib/labels";
+import {EmptyState} from "@/components/Editorial";
+export default function ScheduleExplorer({games,teams,universeDate,language}:{games:any[];teams:any[];universeDate:string;language:"de"|"en"}){
+ const [team,setTeam]=useState("ALL"),[status,setStatus]=useState("ALL"),[month,setMonth]=useState("ALL"),[q,setQ]=useState(""),[limit,setLimit]=useState(40);const en=language==="en";
+ const months=useMemo(()=>Array.from(new Set(games.map(g=>g.game_day?.slice(0,7)).filter(Boolean))).sort(),[games]);
+ const filtered=useMemo(()=>games.filter(g=>{const text=`${g.home?.abbreviation} ${g.away?.abbreviation} ${g.home?.city} ${g.home?.name} ${g.away?.city} ${g.away?.name}`.toLowerCase();return (team==="ALL"||[g.home?.abbreviation,g.away?.abbreviation].includes(team))&&(status==="ALL"||g.status===status)&&(month==="ALL"||g.game_day?.startsWith(month))&&text.includes(q.trim().toLowerCase());}),[games,team,status,month,q]);
+ const reset=()=>setLimit(40);
+ return <section><div className="filterbar"><label>Team<select value={team} onChange={e=>{setTeam(e.target.value);reset();}}><option value="ALL">{en?"All teams":"Alle Teams"}</option>{teams.map(t=><option key={t.id} value={t.abbreviation}>{t.abbreviation}</option>)}</select></label><label>{en?"Month":"Monat"}<select value={month} onChange={e=>{setMonth(e.target.value);reset();}}><option value="ALL">{en?"All months":"Alle Monate"}</option>{months.map(m=><option key={m} value={m}>{new Date(m+"-01T12:00:00Z").toLocaleDateString(en?"en-US":"de-DE",{month:"long",year:"numeric",timeZone:"UTC"})}</option>)}</select></label><label>Status<select value={status} onChange={e=>{setStatus(e.target.value);reset();}}><option value="ALL">{en?"All games":"Alle Spiele"}</option><option value="scheduled">{en?"Upcoming":"Ausstehend"}</option><option value="completed">{en?"Completed":"Abgeschlossen"}</option></select></label><label>{en?"Find team":"Team suchen"}<input type="search" value={q} onChange={e=>{setQ(e.target.value);reset();}} placeholder={en?"Name or abbreviation":"Name oder Kürzel"}/></label></div><p className="filterCount" role="status">{filtered.length} {en?"games":"Spiele"}</p><div className="scheduleList">{filtered.slice(0,limit).map(g=><Link href={`/game/${g.id}${g.status==="completed"?"":"#stats"}`} key={g.id} className={`scheduleRow ${g.game_day===universeDate?"todayRow":""}`}><div className="scheduleDate"><b>{localDate(g.game_day,language)}</b><small>{g.game_day===universeDate?(en?"Career date":"Karrieredatum"):""}</small></div><div className="matchup"><span className="matchupTeam"><TeamBadge team={g.away} small/><strong>{g.away?.abbreviation}</strong><small>{g.away?.city} {g.away?.name}</small></span><span className="at">@</span><span className="matchupTeam"><TeamBadge team={g.home} small/><strong>{g.home?.abbreviation}</strong><small>{g.home?.city} {g.home?.name}</small></span></div><div className="score">{g.status==="completed"?`${g.away_score} : ${g.home_score}`:<span className="scheduleAction">{en?"Open game":"Zum Spiel"} →</span>}</div><div className="competitionCell"><CompetitionBadge stage={g.stage} small/><span>{stageLabel(g.stage,language)}</span></div></Link>)}</div>{!filtered.length&&<EmptyState title={en?"No games in this selection":"Hier ist gerade spielfrei"} detail={en?"Change a filter or add a custom game in the control room.":"Ändere die Filter oder ergänze eine eigene Partie in der Verwaltung."}/>} {limit<filtered.length&&<button className="secondaryButton loadMore" onClick={()=>setLimit(n=>n+40)}>{en?"Show more games":"Weitere Spiele anzeigen"}</button>}</section>;
 }

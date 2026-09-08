@@ -1,26 +1,4 @@
 "use client";
 import {useState} from "react";
-
-export default function LanguageSwitch({universeId,language}:{universeId:string;language:"de"|"en"}){
-  const [busy,setBusy]=useState(false);
-  return <select
-    className="languageSwitch"
-    aria-label="Language"
-    value={language}
-    disabled={busy}
-    onChange={async e=>{
-      const value=e.target.value as "de"|"en";
-      setBusy(true);
-      try{
-        const r=await fetch("/api/universes/language",{
-          method:"POST",headers:{"content-type":"application/json"},
-          body:JSON.stringify({universeId,language:value})
-        });
-        if(!r.ok)throw new Error("Language update failed");
-        location.reload();
-      }finally{setBusy(false)}
-    }}>
-    <option value="de">DE</option>
-    <option value="en">EN</option>
-  </select>;
-}
+import StatusMessage from "@/components/StatusMessage";
+export default function LanguageSwitch({universeId,language}:{universeId:string;language:"de"|"en"}){const [busy,setBusy]=useState(false),[error,setError]=useState("");const en=language==="en";return <><select aria-label={en?"Career language":"Karrieresprache"} value={language} disabled={busy} onChange={async e=>{setBusy(true);setError("");try{const r=await fetch("/api/universes/language",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({universeId,language:e.target.value})});const data=await r.json();if(!r.ok)throw Error(data.error);location.reload();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}}><option value="de">{en?"German":"Deutsch"}</option><option value="en">{en?"English":"Englisch"}</option></select>{error&&<StatusMessage tone="error">{error}</StatusMessage>}</>;}

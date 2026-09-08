@@ -1,4 +1,7 @@
 import {db} from "@/lib/db";
+import {fetchPaged,loadCareerSchedule} from "@/lib/universe";
+import {jsonObject,checked} from "@/lib/data";
+import {label} from "@/lib/labels";
 
 type Lang="de"|"en";
 const clamp=(n:number,min=0,max=100)=>Math.max(min,Math.min(max,Math.round(n)));
@@ -30,7 +33,7 @@ async function getLang(careerId:string):Promise<Lang>{
 
 export async function calculateTrends(careerId:string,language?:Lang){
   const client=db(),lang=language||await getLang(careerId);
-  const {data:rows}=await client.from("player_game_stats").select("*").eq("career_id",careerId).eq("appearance_status","played").order("created_at",{ascending:false}).limit(20);
+  const {data:rows}=await client.from("player_game_stats").select("*,games!inner(game_date)").eq("career_id",careerId).eq("appearance_status","played").order("games(game_date)",{ascending:false}).limit(20);
   const s=rows||[];
   const avg=(arr:any[],k:string)=>arr.length?arr.reduce((a,r)=>a+Number(r[k]||0),0)/arr.length:0;
   const group=(n:number)=>s.slice(0,n);
@@ -53,7 +56,7 @@ export async function calculateTrends(careerId:string,language?:Lang){
 
 async function ensureGoals(career:any,seasonId:string,lang:Lang){
   const client=db();
-  const goals=lang==="en"?[
+  const goals:[string,string,number][]=lang==="en"?[
     ["PPG_25","Average 25+ PPG",25],
     ["TRIPLE_5","Record 5 triple-doubles",5],
     ["FIFTY","Score 50+ in a game",1],
@@ -66,11 +69,7 @@ async function ensureGoals(career:any,seasonId:string,lang:Lang){
     ["GAMES_70","70 Spiele absolvieren",70],
     ["PLAYOFFS","Die Playoffs erreichen",1]
   ];
-  for(const [code,title,target] of goals){
-    await client.from("season_goals").upsert({
-      career_id:career.id,season_id:seasonId,language:lang,code,title,target,progress:0,status:"active"
-    },{onConflict:"career_id,season_id,code,language"});
-  }
+  checked(await client.from("season_goals").upsert(goals.map(([code,title,target])=>({career_id:career.id,season_id:seasonId,language:lang,code,title,target,progress:0,status:"active"})),{onConflict:"career_id,season_id,code,language",ignoreDuplicates:true}));
 }
 
 async function updateGoals(career:any,seasonId:string,lang:Lang){
@@ -87,86 +86,15 @@ async function updateGoals(career:any,seasonId:string,lang:Lang){
   const playoffs=rows.some((r:any)=>isPlayoff(r.games?.stage))?1:0;
   const values:any={PPG_25:ppg,TRIPLE_5:triples,FIFTY:fifty,GAMES_70:games,PLAYOFFS:playoffs};
   const {data:goals}=await client.from("season_goals").select("*").eq("career_id",career.id).eq("season_id",seasonId).eq("language",lang);
-  for(const g of goals||[]){
-    const progress=Number(values[g.code]??0);
-    await client.from("season_goals").update({
-      progress,status:progress>=Number(g.target)?"completed":"active",updated_at:new Date().toISOString()
-    }).eq("id",g.id);
-  }
-}
-
-async function updateRecords(careerId:string,seasonId:string,game:any,stat:any,lang:Lang){
-  const client=db();
-  const categories:any[]=[
-    ["points",Number(stat.points||0),lang==="en"?"Points":"Punkte"],
-    ["rebounds",Number(stat.rebounds||0),lang==="en"?"Rebounds":"Rebounds"],
-    ["assists",Number(stat.assists||0),lang==="en"?"Assists":"Assists"],
-    ["steals",Number(stat.steals||0),lang==="en"?"Steals":"Steals"],
-    ["blocks",Number(stat.blocks||0),lang==="en"?"Blocks":"Blocks"],
-    ["threes",Number(stat.tpm||0),lang==="en"?"Three-pointers made":"Getroffene Dreier"]
-  ];
-  for(const scope of ["career","season",...(isPlayoff(game.stage)?["playoffs"]:[])]){
-    for(const [cat,value,label] of categories){
-      const q=client.from("career_records").select("*").eq("career_id",careerId).eq("scope",scope).eq("category",cat).eq("language",lang);
-      if(scope==="career")q.is("season_id",null);else q.eq("season_id",seasonId);
-      const {data:old}=await q.maybeSingle();
-      if(!old||value>Number(old.value)){
-        const payload={career_id:careerId,season_id:scope==="career"?null:seasonId,scope,category:cat,value,game_id:game.id,label,language:lang,updated_at:new Date().toISOString()};
-        if(old)await client.from("career_records").update(payload).eq("id",old.id);
-        else await client.from("career_records").insert(payload);
-      }
-    }
-  }
+  if(goals?.length)checked(await client.from("season_goals").upsert(goals.map(g=>({...g,progress:Number(values[g.code]??0),status:Number(values[g.code]??0)>=Number(g.target)?"completed":"active",updated_at:new Date().toISOString()})),{onConflict:"career_id,season_id,code,language"}));
 }
 
 async function rebuildCareerRecords(careerId:string,lang:Lang){
-  const client=db();
-  const {data:rows,error}=await client.from("player_game_stats")
-    .select("*,games(season_id,stage)")
-    .eq("career_id",careerId)
-    .eq("appearance_status","played");
-  if(error)throw error;
-
-  const stats=rows||[];
-  const categories:any[]=[
-    ["points",lang==="en"?"Points":"Punkte"],
-    ["rebounds",lang==="en"?"Rebounds":"Rebounds"],
-    ["assists",lang==="en"?"Assists":"Assists"],
-    ["steals",lang==="en"?"Steals":"Steals"],
-    ["blocks",lang==="en"?"Blocks":"Blocks"],
-    ["tpm",lang==="en"?"Three-pointers made":"Getroffene Dreier"]
-  ];
-
-  await client.from("career_records").delete().eq("career_id",careerId).eq("language",lang);
-
-  const insertBest=async(scope:"career"|"season"|"playoffs",group:any[],seasonId:string|null)=>{
-    if(!group.length)return;
-    for(const [field,label] of categories){
-      const best=[...group].sort((a:any,b:any)=>Number(b[field]||0)-Number(a[field]||0))[0];
-      if(!best)continue;
-      await client.from("career_records").insert({
-        career_id:careerId,
-        season_id:scope==="career"?null:seasonId,
-        scope,
-        category:field==="tpm"?"threes":field,
-        value:Number(best[field]||0),
-        game_id:best.game_id,
-        label,
-        language:lang,
-        updated_at:new Date().toISOString()
-      });
-    }
-  };
-
-  await insertBest("career",stats,null);
-
-  const seasonIds=[...new Set(stats.map((r:any)=>r.games?.season_id).filter(Boolean))] as string[];
-  for(const seasonId of seasonIds){
-    const seasonRows=stats.filter((r:any)=>r.games?.season_id===seasonId);
-    await insertBest("season",seasonRows,seasonId);
-    const playoffRows=seasonRows.filter((r:any)=>isPlayoff(r.games?.stage));
-    await insertBest("playoffs",playoffRows,seasonId);
-  }
+ const client=db();const stats=await fetchPaged((from,to)=>client.from("player_game_stats").select("*,games(season_id,stage,game_date)").eq("career_id",careerId).eq("appearance_status","played").order("id").range(from,to));
+ const categories=["points","rebounds","assists","steals","blocks","tpm"];
+ const rows:any[]=[];const add=(scope:string,group:any[],seasonId:string|null)=>{if(!group.length)return;for(const field of categories){const best=[...group].sort((a,b)=>Number(b[field])-Number(a[field])||String(a.games?.game_date).localeCompare(String(b.games?.game_date)))[0];rows.push({career_id:careerId,season_id:seasonId,scope,category:field==="tpm"?"threes":field,value:Number(best[field]),game_id:best.game_id,label:field==="points"?(lang==="en"?"Points":"Punkte"):field==="tpm"?(lang==="en"?"Three-pointers made":"Getroffene Dreier"):field[0].toUpperCase()+field.slice(1),language:lang,updated_at:new Date().toISOString()});}};
+ add("career",stats,null);for(const season of new Set(stats.map(x=>x.games?.season_id).filter(Boolean))){const group=stats.filter(x=>x.games?.season_id===season);add("season",group,season);add("playoffs",group.filter(x=>isPlayoff(x.games?.stage)),season);}
+ const {requireUser}=await import("@/lib/auth");const user=await requireUser();checked(await client.rpc("replace_career_records",{p_actor:user.id,p_career:careerId,p_language:lang,p_rows:rows}));
 }
 
 async function updateRivalry(career:any,game:any,stat:any,result:"win"|"loss"|"unknown",lang:Lang){
@@ -185,7 +113,7 @@ async function updateRivalry(career:any,game:any,stat:any,result:"win"|"loss"|"u
     heat:clamp(Number(old?.heat||20)+heatDelta),
     wins:Number(old?.wins||0)+(result==="win"?1:0),
     losses:Number(old?.losses||0)+(result==="loss"?1:0),
-    meetings:Number(old?.meetings||0)+1,reason,status:"active",last_game_id:game.id,updated_at:new Date().toISOString()
+    meetings:Number(old?.meetings||0)+1,reason,status:"active",last_game_id:game.id,notes_language:lang,updated_at:new Date().toISOString()
   };
   if(old)await client.from("rivalries").update(payload).eq("id",old.id);else await client.from("rivalries").insert(payload);
 
@@ -196,7 +124,8 @@ async function updateRivalry(career:any,game:any,stat:any,result:"win"|"loss"|"u
   },{onConflict:"career_id,segment,team_id"});
 }
 
-function gradeGame(stat:any){
+export function gradeGame(stat:any){
+  if(stat.appearance_status!=="played")return {overall:0,overall_grade:"—",scoring:0,playmaking:0,defense:0,efficiency:0,discipline:0};
   const fg=pct(Number(stat.fgm||0),Number(stat.fga||0));
   const scoring=clamp(38+Number(stat.points||0)*1.35+(fg-.45)*65);
   const playmaking=clamp(45+Number(stat.assists||0)*5-Number(stat.turnovers||0)*7);
@@ -300,6 +229,7 @@ async function updateOrganicTradeInterest(career:any,game:any,lang:Lang){
 
 async function updatePersonas(career:any,game:any,stat:any,grade:any,lang:Lang){
   const client=db();
+  const rows=[];
   for(const p of PERSONAS){
     let sentiment=0,stance="neutral",memory="";
     if(p.base==="hater"){sentiment=-45;stance="critical";memory=lang==="en"
@@ -317,11 +247,12 @@ async function updatePersonas(career:any,game:any,stat:any,grade:any,lang:Lang){
     else{sentiment=35;stance="balanced";memory=lang==="en"
       ?`Latest performance graded ${grade.overall_grade}. Keeps the long-term view.`
       :`Letzte Leistung mit ${grade.overall_grade} bewertet. Behält die langfristige Perspektive.`;}
-    await client.from("persona_memories").upsert({
+    rows.push({
       career_id:career.id,persona_key:p.key,persona_name:p.name,role:p.role,stance,sentiment,memory,
       source_game_id:game.id,language:lang,updated_at:new Date().toISOString()
-    },{onConflict:"career_id,persona_key,language"});
+    });
   }
+  checked(await client.from("persona_memories").upsert(rows,{onConflict:"career_id,persona_key,language"}));
 }
 
 async function updateStoryArcs(career:any,game:any,stat:any,grade:any,lang:Lang){
@@ -338,7 +269,7 @@ async function updateStoryArcs(career:any,game:any,stat:any,grade:any,lang:Lang)
   const {data:existing}=await client.from("story_arcs").select("*").eq("career_id",career.id).eq("language",lang).eq("category",category).eq("status","active").maybeSingle();
   if(existing){
     const intensity=clamp(Number(existing.intensity)+(grade.overall>=85?8:-5));
-    await client.from("story_arcs").update({title,summary,intensity,metadata:{...(existing.metadata||{}),last_game_id:game.id},}).eq("id",existing.id);
+    await client.from("story_arcs").update({title,summary,intensity,metadata:{...jsonObject(existing.metadata),last_game_id:game.id},}).eq("id",existing.id);
   }else{
     await client.from("story_arcs").insert({career_id:career.id,category,title,summary,status:"active",intensity:clamp(55+(grade.overall-75)/2),started_on:game.game_day,metadata:{last_game_id:game.id},language:lang});
   }
@@ -354,6 +285,9 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
   const client=db();
   const {data:existing}=await client.from("interviews").select("id,topic").eq("career_id",career.id).eq("game_id",game.id).eq("language",lang);
   if((existing||[]).length)return;
+  if(stat.appearance_status!=="played"){
+   const en=lang==="en";checked(await client.from("interviews").insert({career_id:career.id,game_id:game.id,interview_date:game.game_day,language:lang,status:"open",reporter_name:"Mara Cole",outlet:"Career Universe",topic:stat.appearance_status==="suspended"?"discipline":"injury",importance:75,question:en?"You watched this game from the sidelines. What is your focus before returning?":"Du hast dieses Spiel von draußen verfolgt. Worauf konzentrierst du dich vor deiner Rückkehr?",context:label(stat.appearance_status,lang),options:[{id:"team",style:en?"Team first":"Das Team zuerst",label:en?"I want to help the team however I can until I return.":"Ich will dem Team bis zu meiner Rückkehr helfen, wo ich kann.",impact:{fans:3}},{id:"patient",style:en?"Patient":"Geduldig",label:en?"I am taking it one step at a time. I will be ready when the time comes.":"Ich gehe Schritt für Schritt. Ich werde bereit sein, wenn es soweit ist.",impact:{expert:3}},{id:"short",style:en?"Brief":"Kurz",label:en?"My focus is on getting back on the court.":"Mein Fokus liegt darauf, wieder auf dem Court zu stehen.",impact:{}}]}));return;
+  }
 
   const opponentId=game.home_team_id===stat.team_id?game.away_team_id:game.home_team_id;
   const [{data:opponent},{data:recentInterviews},{data:rep},{data:previous},{data:rivalry},{data:tradeSaga}]=await Promise.all([
@@ -383,7 +317,7 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
     const common:any={
       hype:[
         {id:"confident",style:style("Selbstbewusst","Confident"),label:style("Wenn sie reden wollen, sollen sie reden. Ich weiß, was ich kann.","If they want to talk, let them talk. I know what I can do."),impact:{hype:5,star:3,hater:5}},
-        {id:"team",style:"Team-first",label:style("Der Hype ist egal. Entscheidend ist, dass wir gewinnen.","The hype does not matter. What matters is that we win."),impact:{fans:5,expert:3,hype:-2}},
+        {id:"team",style:style("Das Team zuerst","Team first"),label:style("Der Hype ist egal. Entscheidend ist, dass wir gewinnen.","The hype does not matter. What matters is that we win."),impact:{fans:5,expert:3,hype:-2}},
         {id:"grounded",style:style("Geerdet","Grounded"),label:style("Es waren gute Minuten, aber ich habe noch nichts erreicht.","It was a good night, but I have not accomplished anything yet."),impact:{expert:5,hype:-2,hater:-2}},
         {id:"spicy",style:style("Provokant","Spicy"),label:style("Vielleicht müssen sich die Leute langsam daran gewöhnen.","Maybe people should start getting used to it."),impact:{hype:7,star:4,hater:8,culture:3}}
       ],
@@ -402,12 +336,12 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
       efficiency:[
         {id:"reads",style:style("Analytisch","Analytical"),label:style("Ich habe genommen, was die Defense mir gegeben hat.","I took what the defense gave me."),impact:{expert:6}},
         {id:"attack",style:style("Aggressiv","Aggressive"),label:style("Wenn ich solche Looks bekomme, werde ich weiter angreifen.","If I get those looks, I am going to keep attacking."),impact:{hype:3,star:2}},
-        {id:"team",style:"Team-first",label:style("Gute Würfe entstehen aus guter Offense. Das war nicht nur ich.","Good shots come from good offense. That was not just me."),impact:{fans:5,expert:3}},
+        {id:"team",style:style("Das Team zuerst","Team first"),label:style("Gute Würfe entstehen aus guter Offense. Das war nicht nur ich.","Good shots come from good offense. That was not just me."),impact:{fans:5,expert:3}},
         {id:"ceiling",style:style("Selbstbewusst","Confident"),label:style("Ich glaube nicht, dass das schon mein bestes Basketball war.","I do not think that was my best basketball yet."),impact:{hype:5,star:4,hater:4}}
       ],
       pressure:[
         {id:"calm",style:style("Gelassen","Calm"),label:style("Druck gehört dazu. Genau dafür spiele ich.","Pressure is part of it. That is exactly why I play."),impact:{star:4,expert:3}},
-        {id:"team",style:"Team-first",label:style("In engen Spielen vertraue ich meinen Jungs und sie vertrauen mir.","In close games I trust my guys and they trust me."),impact:{fans:6}},
+        {id:"team",style:style("Das Team zuerst","Team first"),label:style("In engen Spielen vertraue ich meinen Jungs und sie vertrauen mir.","In close games I trust my guys and they trust me."),impact:{fans:6}},
         {id:"want_ball",style:style("Clutch","Clutch"),label:style("In solchen Momenten will ich den Ball.","In those moments, I want the ball."),impact:{hype:6,star:5,hater:4}},
         {id:"learn",style:style("Lernend","Learning"),label:style("Genau solche Possessions helfen mir am meisten, besser zu werden.","Those are the possessions that help me improve the most."),impact:{expert:5}}
       ],
@@ -436,7 +370,7 @@ async function createInterview(career:any,game:any,stat:any,grade:any,result:"wi
         {id:"no_comment",style:style("Kein Kommentar","No comment"),label:style("Über Gerüchte spreche ich nicht.","I do not talk about rumors."),impact:{hype:2}}
       ],
       generic:[
-        {id:"team",style:"Team-first",label:style("Am wichtigsten ist der Sieg. Alles andere kommt danach.","The win matters most. Everything else comes after that."),impact:{fans:5,expert:2}},
+        {id:"team",style:style("Das Team zuerst","Team first"),label:style(result==="win"?"Am wichtigsten ist der Sieg. Alles andere kommt danach.":"Wir müssen als Team besser werden. Darauf kommt es an.",result==="win"?"The win matters most. Everything else comes after that.":"We need to improve as a team. That is what matters."),impact:{fans:5,expert:2}},
         {id:"film",style:style("Analytisch","Analytical"),label:style("Es gab gute Dinge und Dinge, die wir morgen auf Film korrigieren.","There were good things and things we will correct on film tomorrow."),impact:{expert:5}},
         {id:"confident",style:style("Selbstbewusst","Confident"),label:style("Ich habe mich gut gefühlt und will darauf aufbauen.","I felt good and I want to build on it."),impact:{hype:3,star:2}},
         {id:"next",style:style("Fokus","Focus"),label:style("Ein Spiel. Jetzt kommt das nächste.","One game. Now it is on to the next one."),impact:{fans:2}}
@@ -633,37 +567,26 @@ export async function ensurePregameCoverage(career:any,universe:any,game:any,lan
   const body=lang==="en"
     ?`Rivalry heat: ${heat}/100. Expert respect: ${respect}/100. The matchup is framed around how the defense changes the reads.`
     :`Rivalry-Heat: ${heat}/100. Experten-Respekt: ${respect}/100. Im Mittelpunkt steht, wie die Defense die Reads verändert.`;
-  const {data}=await client.from("pregame_coverage").insert({career_id:career.id,game_id:game.id,language:lang,headline,body,key_question:key,expert_picks:picks}).select("*").single();
-  return data;
+  const {data,error}=await client.from("pregame_coverage").upsert({career_id:career.id,game_id:game.id,language:lang,headline,body,key_question:key,expert_picks:picks},{onConflict:"career_id,game_id,language",ignoreDuplicates:true}).select("*").maybeSingle();
+  if(error)throw error;
+  return data||checked(await client.from("pregame_coverage").select("*").eq("career_id",career.id).eq("game_id",game.id).eq("language",lang).maybeSingle());
 }
 
-async function nextGame(career:any,universe:any,date:string){
-  const client=db();
-  const {data}=await client.from("games").select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
-    .gte("game_day",date)
-    .or(`home_team_id.eq.${career.current_team_id},away_team_id.eq.${career.current_team_id}`)
-    .or(`universe_id.is.null,universe_id.eq.${universe.id}`)
-    .order("game_date").limit(6);
-  if(!(data||[]).length)return null;
-  const ids=(data||[]).map((g:any)=>g.id);
-  const {data:done}=await client.from("universe_games").select("game_id,status").eq("universe_id",universe.id).in("game_id",ids);
-  const finished=new Set((done||[]).filter((r:any)=>r.status==="completed").map((r:any)=>r.game_id));
-  return (data||[]).find((g:any)=>!finished.has(g.id))||null;
-}
+async function nextGame(career:any,universe:any,date:string){return (await loadCareerSchedule(db(),{...career,universe_date:date},universe)).find(g=>g.status!=="completed"&&g.game_day>=date)||null;}
 
 async function updateLegacy(careerId:string){
   const client=db();
-  const [{data:stats},{data:trophies},{data:awards},{data:rep},{data:records}]=await Promise.all([
-    client.from("player_game_stats").select("points").eq("career_id",careerId).eq("appearance_status","played"),
+  const [stats,{data:trophies},{data:rep},{data:records}]=await Promise.all([
+    fetchPaged((from,to)=>client.from("player_game_stats").select("id,points").eq("career_id",careerId).eq("appearance_status","played").order("id").range(from,to)),
     client.from("trophies").select("*").eq("career_id",careerId),
-    client.from("award_snapshots").select("*").eq("career_id",careerId).eq("rank",1),
     client.from("universe_reputation").select("*").eq("career_id",careerId).maybeSingle(),
     client.from("career_records").select("*").eq("career_id",careerId).eq("scope","career")
   ]);
   const games=(stats||[]).length,points=(stats||[]).reduce((a:any,r:any)=>a+Number(r.points||0),0);
-  const rings=(trophies||[]).filter((t:any)=>/champion/i.test(t.trophy_type+" "+t.title)).length;
-  const mvps=(awards||[]).filter((a:any)=>String(a.award).toLowerCase()==="mvp").length;
-  const awardsWon=(awards||[]).length;
+  const rings=(trophies||[]).filter(t=>t.trophy_type==="championship"&&t.source!=="award_tracker").length;
+  const confirmed=(trophies||[]).filter(t=>t.source!=="award_tracker");
+  const mvps=confirmed.filter(t=>t.trophy_type==="award"&&/^mvp$/i.test(t.title.trim())).length;
+  const awardsWon=confirmed.filter(t=>t.trophy_type==="award").length;
   const score=clamp(games*.035+points/700+rings*13+mvps*10+awardsWon*3+Number(rep?.star_power||50)*.12+Number(rep?.expert_respect||50)*.08);
   const breakdown={games,points,rings,mvps,awardsWon,star_power:rep?.star_power||50,expert_respect:rep?.expert_respect||50,career_records:(records||[]).length};
   await client.from("legacy_scores").upsert({career_id:careerId,score,breakdown,updated_at:new Date().toISOString()},{onConflict:"career_id"});
@@ -674,7 +597,7 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
   const client=db();
   const lang:Lang=universe.language==="en"?"en":"de";
   const grade=gradeGame(stat);
-  const summary=lang==="en"
+  const summary=stat.appearance_status!=="played"?label(stat.appearance_status,lang):lang==="en"
     ?`Overall ${grade.overall_grade}. Scoring ${grade.scoring}/100, playmaking ${grade.playmaking}/100, defense ${grade.defense}/100, efficiency ${grade.efficiency}/100, discipline ${grade.discipline}/100.`
     :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Effizienz ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
   await client.from("postgame_grades").upsert({
@@ -682,15 +605,15 @@ export async function updateUniverseAfterGame({career,universe,game,stat,result}
     scoring:grade.scoring,playmaking:grade.playmaking,defense:grade.defense,efficiency:grade.efficiency,discipline:grade.discipline,summary
   },{onConflict:"career_id,game_id,language"});
 
-  await updateReputation(career,stat,result,grade);
+  if(stat.appearance_status==="played")await updateReputation(career,stat,result,grade);
   await Promise.all([
     updateRivalry(career,game,stat,result,lang),
-    updatePersonas(career,game,stat,grade,lang),
-    updateStoryArcs(career,game,stat,grade,lang),
-    updateRecords(career.id,game.season_id,game,stat,lang),
+    stat.appearance_status==="played"?updatePersonas(career,game,stat,grade,lang):Promise.resolve(),
+    stat.appearance_status==="played"?updateStoryArcs(career,game,stat,grade,lang):Promise.resolve(),
+    rebuildCareerRecords(career.id,lang),
     updateGoals(career,game.season_id,lang),
     createInterview(career,game,stat,grade,result,lang),
-    updateOrganicTradeInterest(career,game,lang)
+    stat.appearance_status==="played"?updateOrganicTradeInterest(career,game,lang):Promise.resolve()
   ]);
   const next=await nextGame(career,universe,game.game_day);
   if(next)await ensurePregameCoverage(career,universe,next,lang);
@@ -701,7 +624,7 @@ export async function refreshDerivedAfterStatEdit({career,universe,game,stat}:{c
   const client=db();
   const lang:Lang=universe.language==="en"?"en":"de";
   const grade=gradeGame(stat);
-  const summary=lang==="en"
+  const summary=stat.appearance_status!=="played"?label(stat.appearance_status,lang):lang==="en"
     ?`Overall ${grade.overall_grade}. Scoring ${grade.scoring}/100, playmaking ${grade.playmaking}/100, defense ${grade.defense}/100, efficiency ${grade.efficiency}/100, discipline ${grade.discipline}/100.`
     :`Gesamtnote ${grade.overall_grade}. Scoring ${grade.scoring}/100, Playmaking ${grade.playmaking}/100, Defense ${grade.defense}/100, Effizienz ${grade.efficiency}/100, Disziplin ${grade.discipline}/100.`;
 
@@ -722,24 +645,8 @@ export async function refreshDerivedAfterStatEdit({career,universe,game,stat}:{c
 }
 
 export async function answerInterview(careerId:string,interviewId:string,optionId:string){
-  const client=db(),lang=await getLang(careerId);
-  const {data:i}=await client.from("interviews").select("*").eq("id",interviewId).eq("career_id",careerId).eq("language",lang).single();
-  if(!i||i.status!=="open")throw new Error(lang==="en"?"Interview is not open.":"Interview ist nicht mehr offen.");
-  const option=(i.options||[]).find((o:any)=>o.id===optionId);
-  if(!option)throw new Error(lang==="en"?"Invalid answer.":"Ungültige Antwort.");
-  const {data:r}=await client.from("universe_reputation").select("*").eq("career_id",careerId).single();
-  const impact=option.impact||{};
-  await client.from("universe_reputation").update({
-    media_hype:clamp(Number(r.media_hype||50)+Number(impact.hype||0)),
-    fan_approval:clamp(Number(r.fan_approval||50)+Number(impact.fans||0)),
-    expert_respect:clamp(Number(r.expert_respect||50)+Number(impact.expert||0)),
-    hater_heat:clamp(Number(r.hater_heat||35)+Number(impact.hater||0)),
-    star_power:clamp(Number(r.star_power||50)+Number(impact.star||0)),
-    cultural_impact:clamp(Number(r.cultural_impact||35)+Number(impact.culture||0)),
-    updated_at:new Date().toISOString()
-  }).eq("career_id",careerId);
-  await client.from("interviews").update({answered_option:optionId,answer_text:option.label,impact,status:"answered"}).eq("id",interviewId);
-  return option;
+  const {requireUser}=await import("@/lib/auth");const user=await requireUser();
+  const {data,error}=await db().rpc("answer_career_interview",{p_actor:user.id,p_career:careerId,p_interview:interviewId,p_option:optionId});if(error)throw error;return data;
 }
 
 export async function createSeasonRecap(career:any,season:any,lang:Lang){
@@ -799,46 +706,18 @@ export async function initializeSeasonGoals(career:any,seasonId:string,language?
 
 
 export async function rebuildUniverseSystems(career:any,universe:any){
-  const client=db();
-  const lang:Lang=universe.language==="en"?"en":"de";
-  await Promise.all([
-    client.from("rivalries").delete().eq("career_id",career.id),
-    client.from("persona_memories").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("pregame_coverage").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("postgame_grades").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("season_goals").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("career_records").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("interviews").delete().eq("career_id",career.id).eq("language",lang),
-    client.from("fanbase_metrics").delete().eq("career_id",career.id),
-    client.from("story_arcs").delete().eq("career_id",career.id).eq("language",lang).in("category",["hype","adversity","performance"])
-  ]);
-  await client.from("universe_reputation").upsert({
-    career_id:career.id,league_reputation:50,star_power:50,media_hype:50,fan_approval:50,
-    expert_respect:50,hater_heat:35,cultural_impact:35,updated_at:new Date().toISOString()
-  },{onConflict:"career_id"});
-  await client.from("legacy_scores").upsert({career_id:career.id,score:0,breakdown:{},updated_at:new Date().toISOString()},{onConflict:"career_id"});
-
-  const {data:stats,error}=await client.from("player_game_stats")
-    .select("*,games(*)").eq("career_id",career.id).order("created_at");
-  if(error)throw error;
-  let processed=0;
-  for(const stat of stats||[]){
-    const game=stat.games;
-    if(!game)continue;
-    const {data:ug}=await client.from("universe_games").select("*")
-      .eq("universe_id",universe.id).eq("game_id",game.id).maybeSingle();
-    const home=Number(ug?.home_score??game.home_score??0),away=Number(ug?.away_score??game.away_score??0);
-    const won=stat.team_id===game.home_team_id?home>away:away>home;
-    const lost=stat.team_id===game.home_team_id?home<away:away<home;
-    await updateUniverseAfterGame({
-      career,universe,game:{...game,home_score:home,away_score:away},stat,
-      result:won?"win":lost?"loss":"unknown"
-    });
-    processed++;
-  }
-  return {processed};
+ const client=db(),lang:Lang=universe.language==="en"?"en":"de";
+ const stats=await fetchPaged((from,to)=>client.from("player_game_stats").select("*,games(*)").eq("career_id",career.id).order("id").range(from,to));
+ const grades=stats.map(stat=>{const g=gradeGame(stat);return {career_id:career.id,game_id:stat.game_id,language:lang,overall_grade:g.overall_grade,scoring:g.scoring,playmaking:g.playmaking,defense:g.defense,efficiency:g.efficiency,discipline:g.discipline,summary:stat.appearance_status!=="played"?label(stat.appearance_status,lang):lang==="en"?`Overall grade ${g.overall_grade}. ${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST.`:`Gesamtnote ${g.overall_grade}. ${stat.points} PTS · ${stat.rebounds} REB · ${stat.assists} AST.`};});
+ for(let n=0;n<grades.length;n+=200)checked(await client.from("postgame_grades").upsert(grades.slice(n,n+200),{onConflict:"career_id,game_id,language"}));
+ await rebuildCareerRecords(career.id,lang);
+ const seasons=new Set(stats.map(x=>x.games?.season_id).filter(Boolean));if(universe.current_season_id)seasons.add(universe.current_season_id);
+ for(const season of seasons)await updateGoals(career,season,lang);
+ const {rebuildMilestones}=await import("@/lib/story");await rebuildMilestones(career.id,lang);
+ const rep=checked(await client.from("universe_reputation").select("*").eq("career_id",career.id).maybeSingle());
+ if(rep)checked(await client.from("fanbase_metrics").upsert([{career_id:career.id,segment:"current_team",team_id:career.current_team_id,approval:rep.fan_approval,heat:15},{career_id:career.id,segment:"nba_overall",team_id:null,approval:rep.league_reputation,heat:rep.hater_heat}],{onConflict:"career_id,segment,team_id"}));
+ await updateLegacy(career.id);return {processed:stats.length,preservedNarrative:true};
 }
-
 
 export async function refreshLegacyScore(careerId:string){
   return updateLegacy(careerId);

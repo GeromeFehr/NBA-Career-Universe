@@ -8,7 +8,8 @@
     "start": "next start",
     "check": "tsc --noEmit",
     "schedule:sync": "node scripts/sync-schedule.mjs",
-    "schedule:import": "node scripts/import-schedule.mjs"
+    "schedule:import": "node scripts/import-schedule.mjs",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.6",
@@ -16,12 +17,14 @@
     "next": "16.3.4",
     "openai": "^5.19.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "4.23.13",
     "typescript": "^5.9.0"
   }
 }

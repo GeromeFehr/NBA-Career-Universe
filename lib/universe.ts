@@ -1,28 +1,32 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function pageContext() {
+/** React cache deduplicates layout/navigation/page reads within one request only. */
+export const activeContext = cache(async () => {
   const user = await currentUser();
-  if (!user) redirect("/login");
-
-  const store = await cookies();
-  const universeId = store.get("nba_universe")?.value;
-  if (!universeId) redirect("/universes");
-
+  if (!user) return null;
+  const universeId = (await cookies()).get("nba_universe")?.value;
+  if (!universeId || !/^[0-9a-f-]{36}$/i.test(universeId)) return null;
   const client = db();
-  const { data: universe } = await client.from("universes").select("*").eq("id", universeId).maybeSingle();
-  if (!universe || universe.owner_id !== user.id) redirect("/universes");
+  const {data: universe, error} = await client.from("universes").select("*")
+    .eq("id", universeId).eq("owner_id", user.id).maybeSingle();
+  if (error) throw error;
+  if (!universe) return null;
+  const {data: career, error: careerError} = await client.from("career_profiles")
+    .select("*,current_team:teams(*)").eq("universe_id", universe.id).maybeSingle();
+  if (careerError) throw careerError;
+  if (!career) return null;
+  return {user, universe, career, client};
+});
 
-  const { data: career } = await client
-    .from("career_profiles")
-    .select("*,current_team:teams(*)")
-    .eq("universe_id", universe.id)
-    .maybeSingle();
-
-  if (!career) redirect("/universes");
-  return { user, universe, career, client };
+export async function pageContext() {
+  if (!(await currentUser())) redirect("/login");
+  const context = await activeContext();
+  if (!context) redirect("/universes");
+  return context;
 }
 
 export function mergeUniverseResults(games: any[], results: any[]) {
@@ -40,7 +44,7 @@ export function mergeUniverseResults(games: any[], results: any[]) {
   });
 }
 
-async function fetchPaged(factory:(from:number,to:number)=>Promise<any>, pageSize=1000){
+export async function fetchPaged(factory:(from:number,to:number)=>PromiseLike<{data:any[]|null;error:unknown}>, pageSize=1000){
   const rows:any[]=[];
   for(let from=0;;from+=pageSize){
     const {data,error}=await factory(from,from+pageSize-1);
@@ -65,40 +69,37 @@ function uniqueById(rows:any[]){
  * - universe-specific manual games stay isolated
  */
 export async function loadCareerSchedule(client:any,career:any,universe:any){
-  const playerStats=await fetchPaged((from,to)=>
+  const [playerStats,results,futureGames]=await Promise.all([fetchPaged((from,to)=>
     client.from("player_game_stats")
       .select("game_id,team_id")
       .eq("career_id",career.id)
       .order("created_at")
       .range(from,to)
-  );
-
-  const results=await fetchPaged((from,to)=>
+  ),fetchPaged((from,to)=>
     client.from("universe_games")
       .select("*")
       .eq("universe_id",universe.id)
       .order("created_at")
       .range(from,to)
-  );
-
-  const futureGames=await fetchPaged((from,to)=>
+  ),fetchPaged((from,to)=>
     client.from("games")
       .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
       .gte("game_day",career.universe_date)
+      .eq("season_id", universe.current_season_id)
       .or(`home_team_id.eq.${career.current_team_id},away_team_id.eq.${career.current_team_id}`)
       .or(`universe_id.is.null,universe_id.eq.${universe.id}`)
       .order("game_date")
       .range(from,to)
-  );
+  )]);
 
-  const historicalIds=Array.from(new Set(playerStats.map((s:any)=>s.game_id).filter(Boolean)));
+  const historicalIds=Array.from(new Set([...playerStats, ...results].map((s:any)=>s.game_id).filter(Boolean)));
   const historicalGames:any[]=[];
   for(let i=0;i<historicalIds.length;i+=200){
     const ids=historicalIds.slice(i,i+200);
     if(!ids.length)continue;
     const {data,error}=await client.from("games")
       .select("*,home:teams!games_home_team_id_fkey(*),away:teams!games_away_team_id_fkey(*)")
-      .in("id",ids);
+      .in("id",ids).or(`universe_id.is.null,universe_id.eq.${universe.id}`);
     if(error)throw error;
     historicalGames.push(...(data||[]));
   }

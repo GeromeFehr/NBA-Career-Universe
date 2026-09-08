@@ -1,21 +1,5 @@
 "use client";
 import {useState} from "react";
-
-export default function WorldRebuildButton({language}:{language:"de"|"en"}){
-  const en=language==="en";
-  const [busy,setBusy]=useState(false),[msg,setMsg]=useState("");
-  return <div className="inlineAction">
-    <button disabled={busy} onClick={async()=>{
-      if(!confirm(en?"Rebuild reputation, rivalries, grades, goals and persona memory from your saved career games?":"Reputation, Rivalries, Noten, Ziele und Persona-Gedächtnis aus deinen gespeicherten Karrierespielen neu aufbauen?"))return;
-      setBusy(true);setMsg("");
-      try{
-        const r=await fetch("/api/admin/world/rebuild",{method:"POST"});
-        const j=await r.json().catch(()=>({}));
-        if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-        setMsg(j.message);setTimeout(()=>location.reload(),600);
-      }catch(e:any){setMsg(e.message)}
-      finally{setBusy(false)}
-    }}>{busy?(en?"Rebuilding…":"Baue neu auf…"):(en?"Rebuild career world":"Karriere-Welt neu aufbauen")}</button>
-    {msg&&<small>{msg}</small>}
-  </div>;
-}
+import {useRouter} from "next/navigation";
+import StatusMessage from "@/components/StatusMessage";
+export default function WorldRebuildButton({language}:{language:"de"|"en"}){const en=language==="en",router=useRouter();const [busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[error,setError]=useState(false);return <div className="inlineAction"><button className="secondaryButton" disabled={busy} onClick={async()=>{setBusy(true);setMsg("");setError(false);try{const r=await fetch("/api/admin/world/rebuild",{method:"POST"});const j=await r.json();if(!r.ok)throw Error(j.error);setMsg(en?"Statistics, records and goals recalculated. Your decisions and stories remain in the journal.":"Statistiken, Rekorde und Ziele neu berechnet. Deine Entscheidungen und Geschichten bleiben in der Chronik.");router.refresh();}catch(e){setError(true);setMsg(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}}>{busy?(en?"Recalculating…":"Berechne…"):(en?"Recalculate career statistics":"Karrierestatistiken neu berechnen")}</button>{msg&&<StatusMessage tone={error?"error":"success"}>{msg}</StatusMessage>}</div>;}

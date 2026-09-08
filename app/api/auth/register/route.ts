@@ -3,12 +3,13 @@ import { authDb } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const form = await req.formData();
+  const lang=form.get("language")==="en"?"en":"de";
   const email = String(form.get("email") || "").trim();
   const password = String(form.get("password") || "");
   const displayName = String(form.get("displayName") || "").trim();
 
   if (password.length < 8) {
-    return NextResponse.redirect(new URL("/register?error=password", req.url), 303);
+    return NextResponse.redirect(new URL(`/register?error=password&lang=${lang}`, req.url), 303);
   }
 
   const supabase = await authDb();
@@ -18,12 +19,12 @@ export async function POST(req: Request) {
     password,
     options: {
       data: { display_name: displayName || null },
-      emailRedirectTo: origin + "/login"
+      emailRedirectTo: origin + `/auth/callback?lang=${lang}`
     }
   });
 
-  if (error) return NextResponse.redirect(new URL("/register?error=signup", req.url), 303);
-  if (!data.session) return NextResponse.redirect(new URL("/login?message=confirm", req.url), 303);
+  if (error) return NextResponse.redirect(new URL(`/register?error=signup&lang=${lang}`, req.url), 303);
+  if (!data.session) return NextResponse.redirect(new URL(`/login?message=confirm&lang=${lang}`, req.url), 303);
 
   return NextResponse.redirect(new URL("/universes", req.url), 303);
 }
