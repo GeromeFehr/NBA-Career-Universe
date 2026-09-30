@@ -33,11 +33,11 @@ function canvasBlob(canvas:HTMLCanvasElement,type:string,quality:number){
   catch(error){clearTimeout(timer);reject(error);}
  });
 }
-async function serverConvert(file:Blob,originalBytes:number):Promise<OptimizedImage>{
+async function serverConvert(file:Blob,originalBytes:number,endpoint:string):Promise<OptimizedImage>{
  if(file.size>4_000_000)throw Error("IMAGE_SERVER_LIMIT");
  const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),20000);
  try{
-  const response=await fetch("/api/admin/image-normalize",{method:"POST",headers:{"content-type":"application/octet-stream"},body:file,signal:abort.signal});
+  const response=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/octet-stream"},body:file,signal:abort.signal});
   if(response.status===401)throw Error("UNAUTHORIZED");
   const data=await response.json().catch(()=>{throw Error("IMAGE_CONVERSION_FAILED");});
   if(!response.ok)throw Error(data.code||"IMAGE_CONVERSION_FAILED");
@@ -46,7 +46,7 @@ async function serverConvert(file:Blob,originalBytes:number):Promise<OptimizedIm
  }catch(error){if(error instanceof Error&&["UNAUTHORIZED","IMAGE_HEIC","IMAGE_DECODE_FAILED","IMAGE_SERVER_LIMIT"].includes(error.message))throw error;throw Error("IMAGE_CONVERSION_FAILED");}
  finally{clearTimeout(timer);}
 }
-export async function optimizeImage(file:File,maxDimension=1440,quality=0.68):Promise<OptimizedImage>{
+export async function optimizeImage(file:File,maxDimension=1440,quality=0.68,endpoint="/api/admin/image-normalize"):Promise<OptimizedImage>{
  if(file.size>25_000_000)throw Error("IMAGE_TOO_LARGE");
  if(!file.size)throw Error("IMAGE_DECODE_FAILED");
  const mime=imageMime(new Uint8Array(await file.slice(0,64).arrayBuffer()));if(!mime)throw Error("IMAGE_FORMAT");
@@ -65,12 +65,12 @@ export async function optimizeImage(file:File,maxDimension=1440,quality=0.68):Pr
   const best=outputs[0];if(!best||best.size>3_000_000)throw Error("IMAGE_DECODE_FAILED");
   // Always use normalized pixels, never pass an original animated/unsupported file to the scan.
   return {dataUrl:await asDataUrl(best),originalBytes:file.size,optimizedBytes:best.size,width,height};
- }catch{return await serverConvert(blob,file.size);}
+ }catch{return await serverConvert(blob,file.size,endpoint);}
  finally{decoded?.release();if(canvas){canvas.width=0;canvas.height=0;}}
 }
-export async function optimizeImages(files:File[],maxFiles=2){
+export async function optimizeImages(files:File[],maxFiles=2,endpoint="/api/admin/image-normalize"){
  const images:OptimizedImage[]=[];
  // Limit peak memory on phones by decoding one full-resolution image at a time.
- for(const file of files.slice(0,maxFiles))images.push(await optimizeImage(file));
+ for(const file of files.slice(0,maxFiles))images.push(await optimizeImage(file,1440,.68,endpoint));
  return images;
 }

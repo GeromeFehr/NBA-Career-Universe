@@ -1,3 +1,4 @@
+import PublicFootballCareer from "@/components/PublicFootballCareer";
 import {notFound} from "next/navigation";
 import {db} from "@/lib/db";
 import {fetchPaged} from "@/lib/universe";
@@ -14,6 +15,7 @@ export default async function Page({params}: {params: Promise<{slug: string}>}) 
   const {slug} = await params, client = db();
   const universe = checked(await client.from("universes").select("*").eq("slug", slug).eq("visibility", "public").maybeSingle());
   if (!universe) notFound();
+  if(universe.game==="fc")return <PublicFootballCareer universe={universe}/>;
   const career = checked(await client.from("career_profiles").select("*,current_team:teams(*)").eq("universe_id", universe.id).maybeSingle());
   if (!career) notFound();
   const language = langOf(universe), en = language === "en";

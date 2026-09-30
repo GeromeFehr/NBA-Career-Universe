@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import {selectedCareer} from "@/lib/career-selection";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -14,7 +15,7 @@ export const activeContext = cache(async () => {
   const {data: universe, error} = await client.from("universes").select("*")
     .eq("id", universeId).eq("owner_id", user.id).maybeSingle();
   if (error) throw error;
-  if (!universe) return null;
+  if (!universe || universe.game === "fc") return null;
   const {data: career, error: careerError} = await client.from("career_profiles")
     .select("*,current_team:teams(*)").eq("universe_id", universe.id).maybeSingle();
   if (careerError) throw careerError;
@@ -24,6 +25,7 @@ export const activeContext = cache(async () => {
 
 export async function pageContext() {
   if (!(await currentUser())) redirect("/login");
+  if((await selectedCareer())?.universe.game==="fc")redirect("/fc");
   const context = await activeContext();
   if (!context) redirect("/universes");
   return context;

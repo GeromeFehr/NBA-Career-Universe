@@ -1,6 +1,23 @@
-# NBA Career Universe v2
+# Career Universe — NBA 2K & EA FC 27
 
-Eine Multi-User-Begleit-Webapp für eigene MyNBA-Karrieren. Jeder Account kann mehrere vollständig getrennte Universen verwalten.
+Eine Multi-User-Begleit-Webapp für eigene MyNBA- und EA-FC-27-Karrieren. Ein Account verwaltet mehrere getrennte Universen und wählt sein Spiel unter `/games` oder im Karrierehub unter `/universes`.
+
+## Fußball-Erweiterung
+
+- Spieler- und Trainerkarrieren unter `/fc`, mit getrennten Saison- und Karrierewerten
+- manuelle Partien und bearbeitbare Hin- und Rückrunden-Vorlagen aus den Vereinen im Spielstand
+- Remis, Verlängerung und Elfmeterschießen; Liga- und Pokalwerte getrennt
+- Spielberichte, Fanstimmen und Pressefragen nach neu eingetragenen Ergebnissen
+- optionale KI-Berichte und Screenshot-Erkennung mit dem vorhandenen `OPENAI_MODEL`; identische Scans werden wiederverwendet und vor dem Speichern geprüft
+- Kader, fünf Formationen, Startelf, Transfers, Vertragsdaten und Transferbudget
+- Saisonwechsel mit erhaltener Historie, Trophäen, JSON-Export und öffentliche Karriereseiten
+- Koop-Verknüpfung zwischen zwei Accounts mit ausdrücklicher Zustimmung und befristeter Einladung
+
+Bestehende NBA-Universen behalten ihre Zuordnung und alle Ergebnisse. Fußball nutzt separate `fc_*`-Tabellen; Schreibzugriffe prüfen Account und Universum. Versionsprüfungen verhindern das Überschreiben veralteter Spiel-, Profil-, Transfer- und Aufstellungsdaten.
+
+Für die Erweiterung werden die Migrationen `20260929195636_multi_sport_football.sql`, `20260929200932_football_configuration.sql`, `20260929204540_football_transfer_integrity.sql` und `20260930182614_football_write_guards_and_scans.sql` in dieser Reihenfolge angewendet. Bereits angewendete Migrationen nicht erneut ausführen. Für die bestehende Produktionsdatenbank sind diese Migrationen angewendet.
+
+`npm run check`, `npm test` und `npm run build` prüfen den Code. `tests/football-database.sql` prüft die Datenbankfunktionen in einer zurückgerollten Transaktion; dafür muss ein Account vorhanden sein. Ligatabellen basieren ausschließlich auf eingetragenen Ergebnissen. Spielplandaten sind Vorlagen, kein externer Live-Spielplan.
 
 ## Was v2 neu macht
 
@@ -18,7 +35,7 @@ Eine Multi-User-Begleit-Webapp für eigene MyNBA-Karrieren. Jeder Account kann m
 
 ## Architektur
 
-- Next.js 15 + TypeScript
+- Next.js 16.3.4 + TypeScript
 - React 19
 - Supabase Postgres + Supabase Auth
 - `@supabase/ssr` für Cookie-basierte Sessions

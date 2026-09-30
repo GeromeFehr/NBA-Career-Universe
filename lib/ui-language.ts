@@ -1,6 +1,6 @@
 import {cache} from "react";
 import {headers,cookies} from "next/headers";
-import {activeContext} from "@/lib/universe";
+import {selectedCareer} from "@/lib/career-selection";
 import {db,hasDatabaseConfig} from "@/lib/db";
 import {langOf,type AppLanguage} from "@/lib/i18n";
 export const uiLanguage=cache(async ():Promise<AppLanguage>=>{
@@ -9,7 +9,7 @@ export const uiLanguage=cache(async ():Promise<AppLanguage>=>{
     const {data}=await db().from("universes").select("language").eq("slug",slug).eq("visibility","public").maybeSingle();
     if(data)return langOf(data);
   }
-  const context=await activeContext();
+  const context=await selectedCareer();
   if(context)return langOf(context.universe);
   return (h.get("x-cu-language")||(await cookies()).get("nba_ui_language")?.value)==="en"?"en":"de";
 });

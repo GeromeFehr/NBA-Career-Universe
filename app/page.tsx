@@ -1,3 +1,6 @@
+import {redirect} from "next/navigation";
+import {selectedCareer} from "@/lib/career-selection";
+import {currentUser} from "@/lib/auth";
 import {coopContext} from "@/lib/coop-data";
 import {homeFeed} from "@/lib/home-feed";
 import {recordHighlights} from "@/lib/record-highlights";
@@ -15,6 +18,8 @@ import MediaCard from "@/components/MediaCard";
 import ActionCenter,{type DashboardAction} from "@/components/ActionCenter";
 export const dynamic="force-dynamic";
 export default async function Home(){
+  if(!(await currentUser()))redirect("/games");
+  if((await selectedCareer())?.universe.game==="fc")redirect("/fc");
   const context=await coopContext(),{client,career,universe}=context;const lang=langOf(universe),en=lang==="en";
   const [stats,games,feed,{data:interviews},{data:sagas},{data:offers},{data:injuries},{data:arcs}]=await Promise.all([
     fetchPaged((from,to)=>client.from("player_game_stats").select("id,appearance_status,points,rebounds,assists,steals,blocks,minutes,fgm,fga,tpm,tpa,ftm,fta,game:games!inner(season_id)").eq("career_id",career.id).order("id").range(from,to)),

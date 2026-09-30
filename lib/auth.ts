@@ -25,7 +25,7 @@ export async function requireAdmin() {
 
   const client = db();
   const { data: universe } = await client.from("universes").select("*").eq("id", universeId).maybeSingle();
-  if (!universe || universe.owner_id !== user.id) throw new Error("FORBIDDEN");
+  if (!universe || universe.game === "fc" || universe.owner_id !== user.id) throw new Error("FORBIDDEN");
 
   const { data: career } = await client
     .from("career_profiles")

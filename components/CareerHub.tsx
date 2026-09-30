@@ -1,0 +1,20 @@
+"use client";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import Link from "next/link";
+import {FootballCreate} from "@/components/FootballForms";
+import {ClubMark} from "@/components/FootballUI";
+import UniverseManager from "@/components/UniverseManager";
+import TeamBadge from "@/components/TeamBadge";
+import GameSelection from "@/components/GameSelection";
+import StatusMessage from "@/components/StatusMessage";
+export default function CareerHub({universes,legacy,teams,season,en=false,initialGame}:{universes:any[];legacy:any[];teams:any[];season:any;en?:boolean;initialGame?:string}){
+ const router=useRouter(),[busy,setBusy]=useState(false),[error,setError]=useState("");const nba=universes.filter(u=>u.game!=="fc"),fc=universes.filter(u=>u.game==="fc"),game=["nba","fc"].includes(initialGame||"")?initialGame:null;
+ async function open(id:string){setBusy(true);setError("");try{const r=await fetch("/api/universes/select",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({universeId:id})}),j=await r.json();if(!r.ok)throw Error(j.error);router.push(j.href);router.refresh();}catch(e){setError(e instanceof Error?e.message:String(e));setBusy(false);}}
+ async function visibility(u:any){setBusy(true);try{const r=await fetch("/api/universes/visibility",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({universeId:u.id,visibility:u.visibility==="public"?"private":"public"})}),j=await r.json();if(!r.ok)throw Error(j.error);router.refresh();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
+ return <>{error&&<StatusMessage tone="error">{error}</StatusMessage>}<GameSelection en={en} signedIn nbaCount={nba.length} fcCount={fc.length} compact/>
+ <nav className="sectionNav" aria-label={en?"Career filters":"Karrierefilter"}>{[["",en?"All careers":"Alle Karrieren"],["nba","NBA 2K"],["fc","EA FC 27"]].map(([g,l])=><Link key={g} href={`/universes${g?`?game=${g}`:""}`} aria-current={game===g||!game&&!g?"page":undefined}>{l}</Link>)}</nav>
+ <section className="careerHubList"><div className="sectionHead"><h2>{en?"Your careers":"Deine Karrieren"}</h2><span>{(game==="fc"?fc:game==="nba"?nba:universes).length} {en?"worlds":"Welten"}</span></div>{(game==="fc"?fc:game==="nba"?nba:universes).map(u=>{const football=u.game==="fc",p=football?(Array.isArray(u.fc_profiles)?u.fc_profiles[0]:u.fc_profiles):(Array.isArray(u.career_profiles)?u.career_profiles[0]:u.career_profiles);return <article className="careerHubRow" key={u.id}>{football?<ClubMark name={p?.club_name||"FC"} color={p?.club_color}/>:<TeamBadge team={p?.current_team}/>}<div><span className="eyebrow">{football?`EA FC 27 / ${p?.mode==="manager"?(en?"MANAGER":"TRAINER"):(en?"PLAYER":"SPIELER")}`:"NBA 2K / MYNBA"}</span><h3>{u.name}</h3><p>{football?p?.person_name:p?.player_name} · {football?p?.club_name:p?.current_team?.abbreviation} · {u.universe_date}</p></div><div className="buttonRow"><button disabled={busy} onClick={()=>open(u.id)}>{en?"Open":"Öffnen"} →</button><button className="secondaryButton" disabled={busy} onClick={()=>visibility(u)}>{u.visibility==="public"?(en?"Make private":"Privat stellen"):(en?"Share":"Teilen")}</button>{u.visibility==="public"&&<Link href={`/share/${u.slug}`} target="_blank">{en?"Public page":"Öffentliche Seite"} ↗</Link>}</div></article>;})}{!universes.length&&<p className="emptyState">{en?"Your first world starts with a career below.":"Deine erste Welt beginnt mit einer Karriere weiter unten."}</p>}</section>
+ <section id="create" className="careerCreate"><div className="sectionHead"><h2>{en?"Start a new story":"Eine neue Geschichte starten"}</h2><span>01 / CREATE</span></div>{!game&&<p>{en?"Choose a game above to create its career.":"Wähle oben ein Spiel, um eine passende Karriere anzulegen."}</p>}{game==="fc"&&<FootballCreate en={en}/>} {game==="nba"&&<UniverseManager universes={[]} legacy={legacy.filter(u=>u.game!=="fc")} teams={teams} season={season} language={en?"en":"de"} hideEmpty/>}</section>
+ </>;
+}

@@ -2248,6 +2248,7 @@ export type Database = {
       }
       universes: {
         Row: {
+          game: string
           created_at: string
           current_season_id: string | null
           id: string
@@ -2260,6 +2261,7 @@ export type Database = {
           visibility: string
         }
         Insert: {
+          game?: string
           created_at?: string
           current_season_id?: string | null
           id?: string
@@ -2272,6 +2274,7 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          game?: string
           created_at?: string
           current_season_id?: string | null
           id?: string
