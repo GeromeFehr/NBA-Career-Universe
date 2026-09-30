@@ -12,7 +12,7 @@ test("FC27 catalog includes its domestic cups, including Copa MX, and uses only 
  assert.equal(footballCompetitionEdition,"EA FC 27");assert.ok(footballCompetitionSources.every(url=>url.includes("fc-27")&&!url.includes("fc-26")));
  assert.deepEqual(competitionsForFootballLeague("Bundesliga","cup"),["DFB-Pokal"]);assert.deepEqual(competitionsForFootballLeague("2. Bundesliga","cup"),["DFB-Pokal"]);
  assert.deepEqual(competitionsForFootballLeague("Serie A","cup"),["Coppa Italia"]);assert.deepEqual(competitionsForFootballLeague("Liga BBVA MX","cup"),["Copa MX"]);
- assert.deepEqual(competitionsForFootballLeague("Premier League","cup"),["Emirates FA Cup","Carabao Cup"]);assert.deepEqual(competitionsForFootballLeague("EFL League Two","cup"),["Emirates FA Cup","Carabao Cup","EFL Trophy"]);
+ assert.deepEqual(competitionsForFootballLeague("Premier League","cup"),["Emirates FA Cup","Carabao Cup","FA Community Shield"]);assert.deepEqual(competitionsForFootballLeague("EFL League Two","cup"),["Emirates FA Cup","Carabao Cup","FA Community Shield","EFL Trophy"]);
  assert.equal(new Set(footballCompetitions.map(c=>c.name)).size,footballCompetitions.length);assert.ok(!footballCompetitions.some(c=>c.name==="FIFA Club World Cup"));
 });
 test("international competitions stay international and women's careers receive women's competitions",()=>{

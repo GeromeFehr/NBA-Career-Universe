@@ -18,6 +18,8 @@ export const footballCompetitions:FootballCompetition[]=[
  cup("Pokalen",["1"],["DBU Pokalen","Dänischer Pokal"]),
  cup("Emirates FA Cup",["13","14","60","61"],["FA Cup"]),
  cup("Carabao Cup",["13","14","60","61"],["EFL Cup"]),
+ // FC27 manager-career gameplay: https://rutube.ru/video/6f7a2f6c4e97923c14e9f070af8f0c8d/
+ cup("FA Community Shield",["13","14","60","61"],["Community Shield"]),
  cup("EFL Trophy",["60","61"],["Vertu Trophy"]),
  cup("Coupe de France",["16","17"]),
  cup("DFB-Pokal",["19","20","2076"]),
