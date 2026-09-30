@@ -8,7 +8,7 @@ export const positions=["TW","LV","IV","RV","LAV","RAV","ZDM","ZM","ZOM","LM","R
 export function footballText(v:unknown,max=100,required=true){const s=cleanText(v,max);if(required&&!s)throw new InputError("MISSING_VALUES");return s||"";}
 export function footballNumber(v:unknown,min=0,max=999,integer=true,optional=false):number|null{if(v==null||v===""){if(optional)return null;throw new InputError("MISSING_VALUES");}const n=Number(v);if(!Number.isFinite(n)||n<min||n>max||(integer&&!Number.isInteger(n)))throw new InputError("INVALID_VALUES");return n;}
 export function optionalDay(v:unknown){return v==null||v===""?null:validDate(v);}
-export function clubsFromText(v:unknown):string[]{const clubs=String(v||"").split(/[\n;]+/).map(s=>s.trim()).filter(Boolean);if(clubs.length<2||clubs.length>24||clubs.some(s=>s.length>100)||new Set(clubs.map(s=>s.toLocaleLowerCase())).size!==clubs.length)throw new InputError("INVALID_FC_CLUBS");return clubs;}
+export function clubsFromText(v:unknown):string[]{const clubs=String(v||"").split(/[\n;]+/).map(s=>s.trim()).filter(Boolean);if(clubs.length<2||clubs.length>40||clubs.some(s=>s.length>100)||new Set(clubs.map(s=>s.toLocaleLowerCase())).size!==clubs.length)throw new InputError("INVALID_FC_CLUBS");return clubs;}
 export function parseFootballCreate(b:Record<string,unknown>){
  if(b.mode!=="player"&&b.mode!=="manager")throw new InputError("INVALID_FC_MODE");
  const start=validDate(b.universe_date),end=validDate(b.end_date);if(end<=start)throw new InputError("INVALID_SEASON");

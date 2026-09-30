@@ -1,0 +1,19 @@
+"use client";
+import {useState} from "react";
+import {footballClubs,footballLeagues,footballCatalog,footballSearchKey,footballLeagueLabel} from "@/lib/football-catalog";
+import FootballClubBadge from "@/components/FootballClubBadge";
+
+export default function FootballCatalog({en=false}:{en?:boolean}){
+ const [gender,setGender]=useState("all"),[leagueId,setLeagueId]=useState("19"),[query,setQuery]=useState("");
+ const leagues=footballLeagues.filter(league=>gender==="all"||league.gender===gender),key=footballSearchKey(query);
+ const visible=footballClubs.filter(club=>(gender==="all"||club.gender===gender)&&(!leagueId||club.leagues.includes(leagueId))&&(!key||[club.name,...club.aliases,club.country,...club.leagues.map(id=>footballLeagues.find(league=>league.id===id)?.name||"")].some(value=>footballSearchKey(value).includes(key))));
+ const selected=footballLeagues.find(league=>league.id===leagueId);
+ return <section className="fcCatalog">
+  <div className="fcCatalogStats"><div><strong>{footballClubs.length}</strong><span>{en?"CLUBS":"VEREINE"}</span></div><div><strong>{footballLeagues.filter(league=>league.kind==="league").length}</strong><span>{en?"LEAGUES":"LIGEN"}</span></div><div><strong>02</strong><span>CONMEBOL</span></div><div><strong>02</strong><span>{en?"REST OF WORLD":"REST DER WELT"}</span></div></div>
+  <div className="fcCatalogFilters"><label>{en?"Football":"Fußball"}<select value={gender} onChange={event=>{setGender(event.target.value);setLeagueId("");}}><option value="all">{en?"Men & women":"Männer & Frauen"}</option><option value="men">{en?"Men":"Männer"}</option><option value="women">{en?"Women":"Frauen"}</option></select></label><label>{en?"League / competition":"Liga / Wettbewerb"}<select value={leagueId} onChange={event=>setLeagueId(event.target.value)}><option value="">{en?"All leagues & clubs":"Alle Ligen & Vereine"}</option>{leagues.map(league=><option key={league.id} value={league.id}>{footballLeagueLabel(league,en)} ({league.clubs.length})</option>)}</select></label><label>{en?"Search":"Suche"}<input type="search" value={query} onChange={event=>{setQuery(event.target.value);if(event.target.value)setLeagueId("");}} placeholder={en?"Club, league or country":"Verein, Liga oder Land"}/></label></div>
+  <div className="sectionHead"><h2>{selected?(en?selected.name.replace("Rest der Welt","Rest of World").replace("Frauen","Women").replace("Männer","Men"):selected.name):(en?"All clubs":"Alle Vereine")}</h2><span role="status" aria-live="polite">{visible.length} {en?"clubs":"Vereine"}</span></div>
+  {selected?.kind==="rest"&&<p className="finePrint">{en?"Individual clubs from leagues that are not included in full.":"Einzelne Vereine aus Ligen, die im Spiel nicht vollständig enthalten sind."}</p>}
+  {visible.length?<div className="fcClubGrid">{visible.map(club=><article className="fcCatalogClub" key={club.id}><FootballClubBadge name={club.name} clubId={club.id}/><div><strong>{club.name}</strong><span>{club.country} · {club.gender==="women"?(en?"Women":"Frauen"):(en?"Men":"Männer")}</span><small>{club.leagues.map(id=>footballLeagues.find(league=>league.id===id)?.name).join(" · ")}</small></div></article>)}</div>:<p className="fcEmpty">{en?"No clubs found. Try another search.":"Keine Vereine gefunden. Versuche einen anderen Suchbegriff."}</p>}
+  <p className="finePrint fcCatalogSource">{en?"EAFC club names and league assignments. Your save can differ after promotions, relegations or transfers.":"Vereinsnamen und Ligazugehörigkeit aus EAFC. Dein Spielstand kann nach Aufstiegen, Abstiegen oder Transfers abweichen."} {en?"Data":"Datenstand"}: {footballCatalog.updated}. <a href={footballCatalog.sources[0]} target="_blank" rel="noreferrer">EA Sports ↗</a> · <a href="https://fifaindex.com/de/ligen" target="_blank" rel="noreferrer">FIFA Index ↗</a></p>
+ </section>;
+}

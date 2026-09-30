@@ -21,7 +21,7 @@ export default function Nav({game="nba",mode="player",language="de",signedIn=fal
   const fc=game==="fc",hub=path==="/universes"||path==="/games";
   const primary=fc?[["/fc",en?"Today":"Heute"],["/fc/matches",en?"Matches":"Spiele"],["/fc/career",en?"Career":"Karriere"],["/fc/media",en?"Media":"Medien"],[mode==="manager"?"/fc/squad":"/fc/transfers",mode==="manager"?(en?"Squad":"Kader"):(en?"Transfers":"Transfers")],["/fc/coop",en?"Co-op":"Koop"]]:[["/",en?"Today":"Heute"],["/schedule",en?"Games":"Spiele"],["/career",en?"Career":"Karriere"],["/media",en?"Media":"Medien"],["/world",en?"Career world":"Karrierewelt"],["/coop",en?"Co-op":"Koop"]];
   const groups=(fc?[
- [en?"On the pitch":"Auf dem Platz",[["/fc",en?"Today":"Heute"],["/fc/matches",en?"Fixtures & results":"Spielplan & Ergebnisse"],["/fc/competitions",en?"Competitions":"Wettbewerbe"]]],
+ [en?"On the pitch":"Auf dem Platz",[["/fc",en?"Today":"Heute"],["/fc/matches",en?"Fixtures & results":"Spielplan & Ergebnisse"],["/fc/competitions",en?"Competitions":"Wettbewerbe"],["/fc/teams",en?"Leagues & clubs":"Ligen & Vereine"]]],
  [en?"Your career":"Deine Karriere",[["/fc/career",en?"Career file":"Karriereakte"],["/fc/squad",en?"Squad & tactics":"Kader & Taktik"],["/fc/transfers",en?"Transfers & contracts":"Transfers & Verträge"]]],
  [en?"Around football":"Rund um den Fußball",[["/fc/media",en?"Media & press":"Medien & Presse"],["/fc/coop",en?"Co-op":"Koop"],["/fc/trophies",en?"Trophy room":"Trophäenraum"]]],
  [en?"Manage":"Verwalten",[["/fc/settings",en?"Settings & seasons":"Einstellungen & Saisons"],["/universes",en?"All careers":"Alle Karrieren"],["/games",en?"Choose game":"Spiel wählen"]]],
