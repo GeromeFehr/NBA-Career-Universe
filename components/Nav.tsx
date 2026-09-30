@@ -35,7 +35,7 @@ export default function Nav({game="nba",mode="player",language="de",signedIn=fal
   return <>
     <a className="skipLink" href="#main">{en?"Skip to content":"Zum Inhalt"}</a>
     <header className="masthead">
-      <div className="mastheadTop"><Link href={signedIn?"/universes":"/login"} className="edition">{universeName||(fc?"EA FC 27":"NBA 2K / EA FC 27")}{team&&<span> · {team}</span>}</Link><span>{en?"Your career journal":"Dein Karrierejournal"}</span></div>
+      <div className="mastheadTop"><Link href={signedIn?"/universes":"/login"} className="edition">{universeName||(fc?"EAFC":"NBA 2K / EAFC")}{team&&<span> · {team}</span>}</Link><span>{en?"Your career journal":"Dein Karrierejournal"}</span></div>
       <div className="mastheadMain"><Link className="brand" href={signedIn?"/universes":"/games"} aria-label="Career Universe"><span>CAREER</span><span className="brandSlash">/</span><span>UNIVERSE</span></Link>
         <div className="mastheadActions"><ThemeToggle initialTheme={initialTheme} language={language}/>{signedIn?<button ref={toggle} className="menuToggle" aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(true)}><span className="menuGlyph" aria-hidden="true">☰</span>{en?"Menu":"Menü"}</button>:<Link className="textLink" href={"/login?lang="+language}>{en?"Sign in":"Anmelden"} →</Link>}</div>
       </div>
