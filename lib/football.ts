@@ -1,15 +1,25 @@
 import {InputError,validDate,cleanText} from "./game-input";
+import {validateFootballInput} from "./football-validation";
 
 export type FootballMode="player"|"manager";
 export type PlayerLine={appearance:"played"|"bench"|"injured"|"suspended";minutes:number|null;goals:number;assists:number;rating:number|null;shots:number|null;shots_on_target:number|null;passes:number|null;pass_accuracy:number|null;tackles:number|null;interceptions:number|null;saves:number|null;yellow_cards:number;red_cards:number};
 export type FootballMatch={id:string;universe_id:string;season_id:string;match_date:string;competition:string;stage:string;round:number|null;home_club:string;away_club:string;tracked_club:string;status:"scheduled"|"completed";home_score:number|null;away_score:number|null;home_penalties:number|null;away_penalties:number|null;extra_time:boolean;player_stats:PlayerLine|null;possession:number|null;shots:number|null;shots_on_target:number|null;xg:number|null;notes:string|null;scorers:unknown[];updated_at:string};
 export const formations={"4-2-3-1":["TW","LV","IV","IV","RV","ZDM","ZDM","LM","ZOM","RM","ST"],"4-3-3":["TW","LV","IV","IV","RV","ZM","ZDM","ZM","LF","ST","RF"],"4-4-2":["TW","LV","IV","IV","RV","LM","ZM","ZM","RM","ST","ST"],"3-5-2":["TW","IV","IV","IV","LM","ZM","ZDM","ZM","RM","ST","ST"],"4-5-1":["TW","LV","IV","IV","RV","LM","ZM","ZDM","ZM","RM","ST"]} as const;
 export const positions=["TW","LV","IV","RV","LAV","RAV","ZDM","ZM","ZOM","LM","RM","LF","RF","ST"];
+// Recorded playing time includes stoppage time. Extra time is separate match metadata.
+export const maxFootballMinutes=150;
+function footballMinutes(value:unknown):number|null{
+ if(value==null||value==="")return null;
+ const minutes=Number(value);
+ if(typeof value==="boolean"||!Number.isInteger(minutes)||minutes<0||minutes>maxFootballMinutes)throw new InputError("INVALID_FC_MINUTES");
+ return minutes;
+}
 export function footballText(v:unknown,max=100,required=true){const s=cleanText(v,max);if(required&&!s)throw new InputError("MISSING_VALUES");return s||"";}
 export function footballNumber(v:unknown,min=0,max=999,integer=true,optional=false):number|null{if(v==null||v===""){if(optional)return null;throw new InputError("MISSING_VALUES");}const n=Number(v);if(!Number.isFinite(n)||n<min||n>max||(integer&&!Number.isInteger(n)))throw new InputError("INVALID_VALUES");return n;}
 export function optionalDay(v:unknown){return v==null||v===""?null:validDate(v);}
 export function clubsFromText(v:unknown):string[]{const clubs=String(v||"").split(/[\n;]+/).map(s=>s.trim()).filter(Boolean);if(clubs.length<2||clubs.length>40||clubs.some(s=>s.length>100)||new Set(clubs.map(s=>s.toLocaleLowerCase())).size!==clubs.length)throw new InputError("INVALID_FC_CLUBS");return clubs;}
 export function parseFootballCreate(b:Record<string,unknown>){
+ validateFootballInput("create",b);
  if(b.mode!=="player"&&b.mode!=="manager")throw new InputError("INVALID_FC_MODE");
  const start=validDate(b.universe_date),end=validDate(b.end_date);if(end<=start)throw new InputError("INVALID_SEASON");
  const club=footballText(b.club_name),clubs=String(b.clubs||"").trim()?clubsFromText(b.clubs):[club];if(!clubs.includes(club))throw new InputError("INVALID_FC_CLUBS");
@@ -18,6 +28,7 @@ export function parseFootballCreate(b:Record<string,unknown>){
  return {name:footballText(b.name),mode:b.mode,person_name:footballText(b.person_name),club_name:club,club_code:footballText(b.club_code,8,false)||null,club_color:color,league:footballText(b.league),position:footballText(b.position||"ST",12),overall:footballNumber(b.overall??75,1,99),jersey_number:footballNumber(b.jersey_number,1,99,true,true),nationality:footballText(b.nationality,80,false)||null,birth_date:optionalDay(b.birth_date),formation,budget:footballNumber(b.budget??0,0,1e12,false),weekly_wage:footballNumber(b.weekly_wage??0,0,1e9,false),contract_until:optionalDay(b.contract_until),universe_date:start,end_date:end,season_name:footballText(b.season_name,40),language:b.language==="en"?"en":"de",clubs};
 }
 export function parseFootballMatch(b:Record<string,any>,mode:FootballMode):Omit<FootballMatch,"id"|"universe_id"|"updated_at">{
+ validateFootballInput("match",b,{mode});
  const status=b.status;if(status!=="scheduled"&&status!=="completed")throw new InputError("INVALID_STATUS");
  const home=footballText(b.home_club),away=footballText(b.away_club),tracked=footballText(b.tracked_club);if(home.toLowerCase()===away.toLowerCase())throw new InputError("INVALID_FC_MATCH");
  const completed=status==="completed",hs=completed?footballNumber(b.home_score,0,99):null,as=completed?footballNumber(b.away_score,0,99):null;
@@ -27,7 +38,7 @@ export function parseFootballMatch(b:Record<string,any>,mode:FootballMode):Omit<
  if(completed&&mode==="player"&&[home,away].includes(tracked)){
   const s=b.player_stats||{},appearance=s.appearance||"played";if(!["played","bench","injured","suspended"].includes(appearance))throw new InputError("INVALID_STATUS");const played=appearance==="played";
   const stat=(key:string,max=999,integer=true)=>played?footballNumber(s[key],0,max,integer,true):null;
-  player_stats={appearance,minutes:stat("minutes",extra?120:90),goals:played?Number(footballNumber(s.goals??0,0,99)):0,assists:played?Number(footballNumber(s.assists??0,0,99)):0,rating:stat("rating",10,false),shots:stat("shots"),shots_on_target:stat("shots_on_target"),passes:stat("passes"),pass_accuracy:stat("pass_accuracy",100,false),tackles:stat("tackles"),interceptions:stat("interceptions"),saves:stat("saves"),yellow_cards:played?Number(footballNumber(s.yellow_cards??0,0,2)):0,red_cards:played?Number(footballNumber(s.red_cards??0,0,1)):0};
+  player_stats={appearance,minutes:played?footballMinutes(s.minutes):null,goals:played?Number(footballNumber(s.goals??0,0,99)):0,assists:played?Number(footballNumber(s.assists??0,0,99)):0,rating:stat("rating",10,false),shots:stat("shots"),shots_on_target:stat("shots_on_target"),passes:stat("passes"),pass_accuracy:stat("pass_accuracy",100,false),tackles:stat("tackles"),interceptions:stat("interceptions"),saves:stat("saves"),yellow_cards:played?Number(footballNumber(s.yellow_cards??0,0,2)):0,red_cards:played?Number(footballNumber(s.red_cards??0,0,1)):0};
   const score=home===tracked?hs!:as!;if(player_stats.goals+player_stats.assists>score)throw new InputError("INVALID_FC_STATS");
   if(player_stats.shots!=null&&player_stats.shots_on_target!=null&&player_stats.shots_on_target>player_stats.shots)throw new InputError("INVALID_FC_STATS");
  }

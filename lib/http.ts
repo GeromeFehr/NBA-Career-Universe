@@ -1,7 +1,9 @@
 import {NextResponse} from "next/server";
 import {uiLanguage} from "@/lib/ui-language";
 import {InputError} from "@/lib/game-input";
+import {FootballValidationError,localizeFootballIssues} from "@/lib/football-validation";
 const messages:Record<string,[string,string]>={
+ INVALID_FC_MINUTES:["Bitte Einsatzminuten als ganze Zahl von 0 bis 150 eintragen, einschließlich Nachspielzeit. Nachspielzeit erfordert keinen Haken bei Verlängerung.","Enter playing time as a whole number from 0 to 150, including stoppage time. Stoppage time does not require the extra-time checkbox."],
  INVALID_FC_MODE:["Bitte Spieler- oder Trainerkarriere wählen.","Choose player or manager career."],INVALID_FC_CLUBS:["Gib 2 bis 40 unterschiedliche Vereine ein, einschließlich deines Vereins.","Enter 2–40 distinct clubs, including your club."],INVALID_FC_MATCH:["Prüfe Vereine, Endstand, Verlängerung und Elfmeterschießen.","Check clubs, score, extra time and penalties."],INVALID_FC_STATS:["Die Spielerwerte passen nicht zum Ergebnis oder zu den Schüssen.","Player statistics do not match the result or shot counts."],INVALID_LINEUP:["Prüfe Formation und Aufstellung. Jeder verfügbare Spieler darf einmal aufgestellt werden.","Check formation and lineup. Each available player can be selected once."],INVALID_SEASON:["Prüfe Saison und Datum. Eine neue Saison muss nach dem aktuellen Karrieredatum beginnen.","Check season and dates. A new season must start after your career date."],INVALID_TRANSFER:["Prüfe Spieler, Vereine und Transferdatum.","Check player, clubs and transfer date."],INSUFFICIENT_BUDGET:["Das Transferbudget reicht für diese Ablöse nicht aus.","Insufficient transfer budget for this fee."],SCHEDULE_EXISTS:["Diese Saison hat bereits einen Ligaspielplan. Bearbeite die vorhandenen Partien.","This season already has a league schedule. Edit the existing fixtures."],FC_COOP_SEASON_MISMATCH:["Beide Karrieren müssen dieselbe Saisonbezeichnung verwenden.","Both careers need the same season name."],
  CONTRACT_ALREADY_RECORDED:["Für dieses Team wurde an diesem Karrieredatum bereits ein Vertrag abgeschlossen oder abgelehnt.","A contract for this team has already been signed or declined on this career date."],
  CONTRACT_CONFLICT:["In dieser Kategorie läuft bereits ein Vertrag mit überlappender Laufzeit.","An overlapping contract is already active in this category."],
@@ -24,6 +26,7 @@ const messages:Record<string,[string,string]>={
 };
 export async function apiFailure(error:unknown){
  const lang=await uiLanguage().catch(()=>"de"),en=lang==="en";
+ if(error instanceof FootballValidationError)return NextResponse.json({error:en?"Please correct the highlighted fields.":"Bitte korrigiere die markierten Felder.",code:error.code,fieldErrors:localizeFootballIssues(error.issues,en)},{status:400,headers:{"Cache-Control":"no-store"}});
  const code=error instanceof Error?error.message:typeof error==="object"&&error&&"message" in error?String(error.message):"";
  let status=error instanceof InputError?400:500;
  if(code.startsWith("COOP_"))status=409;

@@ -9,19 +9,22 @@ import {InputError,uuid,validDate} from "@/lib/game-input";
 import {parseFootballCreate,parseFootballMatch,footballText,footballNumber,optionalDay,clubsFromText,generateFootballSchedule,formations,footballSummary} from "@/lib/football";
 import {generateFootballMedia} from "@/lib/football-media";
 import type {SupabaseClient} from "@supabase/supabase-js";
+import {validateFootballInput,FootballValidationError,footballIssue} from "@/lib/football-validation";
 
-export const maxDuration=40;
+export const maxDuration=60;
 function ok(data:Record<string,unknown>={}){return privateResponse(NextResponse.json({ok:true,...data}));}
 function selected(response:NextResponse,id:string,language:string){response.cookies.set("nba_universe",id,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:31536000});response.cookies.set("nba_ui_language",language,{sameSite:"lax",path:"/",maxAge:31536000});return response;}
 async function checked(q:PromiseLike<any>){const {data,error}=await q;if(error)throw error;return data;}
-export async function POST(req:Request,{params}:{params:Promise<{action:string}>}){try{
+export async function POST(req:Request,{params}:{params:Promise<{action:string}>}){let currentAction="",submitted:Record<string,any>={};try{
  const {action}=await params,b=await readJson(req);
+ currentAction=action;submitted=b;
  if(action==="create"){
   const user=await requireUser(),payload=parseFootballCreate(b),client=db() as unknown as SupabaseClient<any>;
   const id=await checked(client.rpc("create_football_universe",{p_actor:user.id,p_data:payload}));
   return selected(ok({universeId:id,href:"/fc"}),id,payload.language);
  }
  const ctx=await requireFootball(),{client,user,universe,profile}=ctx;
+ validateFootballInput(action,b,{mode:profile.mode,club:profile.club_name,currentDate:universe.universe_date,budget:Number(profile.budget),formation:profile.formation,position:profile.position});
  const rpc=async(name:string,data:Record<string,unknown>)=>checked(client.rpc(name,{p_actor:user.id,p_universe:universe.id,...data}));
  if(action==="match"){
   const data=parseFootballMatch(b,profile.mode);data.season_id=uuid(data.season_id);
@@ -65,7 +68,7 @@ export async function POST(req:Request,{params}:{params:Promise<{action:string}>
  }
  if(action==="media"){
   const match=await checked(client.from("fc_matches").select("*").eq("id",uuid(b.match_id)).eq("universe_id",universe.id).eq("status","completed").maybeSingle());if(!match)throw Error("GAME_NOT_FOUND");if(![match.home_club,match.away_club].includes(match.tracked_club))throw new InputError("TEAM_NOT_IN_GAME");
-  const result=await generateFootballMedia(ctx,match,b.ai===true);return ok(result);
+  const result=await generateFootballMedia(ctx,match,b.ai!==false,true);return ok(result);
  }
  if(action==="interview"){
   const row=await checked(client.from("fc_interviews").select("*").eq("id",uuid(b.id)).eq("universe_id",universe.id).single());
@@ -87,7 +90,16 @@ export async function POST(req:Request,{params}:{params:Promise<{action:string}>
  }
  if(action==="coop-leave"){await checked(client.from("fc_coop_links").delete().or(`host_universe_id.eq.${universe.id},guest_universe_id.eq.${universe.id}`));return ok();}
  return privateResponse(NextResponse.json({error:"Unknown action"},{status:404}));
- }catch(error){return apiFailure(error);}}
+ }catch(error){
+  // Give known database rejections a field location as well. Never expose SQL errors.
+  const code=error instanceof Error?error.message:typeof error==="object"&&error&&"message" in error?String(error.message):"";
+  if(!(error instanceof FootballValidationError)){
+   if(code==="INSUFFICIENT_BUDGET")error=new FootballValidationError([footballIssue("fee","Die Ablöse überschreitet das aktuell verfügbare Transferbudget. Prüfe Ablöse und Budget.","The fee exceeds your currently available transfer budget. Check the fee and budget.",code)]);
+   else if(code==="INVALID_SEASON")error=new FootballValidationError([footballIssue(currentAction==="season"?"start_date":"season_id",currentAction==="season"?"Die Saison muss nach dem aktuellen Karrieredatum beginnen und vor ihrem Enddatum starten.":"Die ausgewählte Saison gehört nicht zu dieser Karriere. Lade die Seite neu und wähle sie erneut.",currentAction==="season"?"The season must start after your current career date and before its end date.":"The selected season does not belong to this career. Reload and select it again.",code)]);
+   else if(code==="INVALID_TRANSFER"&&currentAction==="transfer")error=new FootballValidationError([footballIssue(submitted.squad_id?"squad_id":"direction",submitted.squad_id?"Dieser Kaderspieler ist nicht mehr für einen Abgang verfügbar oder sein Name stimmt nicht mit dem Transfer überein. Lade den Kader neu.":"Der Wechsel passt nicht zu deinem aktuellen Verein oder Karrieremodus. Lade die Karriere neu und prüfe die Transferart.",submitted.squad_id?"This squad player is no longer available for departure or their name differs from the transfer. Reload the squad.":"The transfer does not match your current club or career mode. Reload the career and check the direction.",code)]);
+  }
+  return apiFailure(error);
+ }}
 export async function GET(req:Request,{params}:{params:Promise<{action:string}>}){try{
  const {action}=await params,ctx=await requireFootball(),{client,universe,profile}=ctx;
  if(action==="export"){

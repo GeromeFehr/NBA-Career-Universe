@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --import tsx scripts/check-football-ai.ts && next build",
     "start": "next start",
     "check": "tsc --noEmit",
     "schedule:sync": "node scripts/sync-schedule.mjs",
