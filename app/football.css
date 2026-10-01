@@ -36,7 +36,7 @@
 
 /* Keep the football illustration at its natural pitch ratio on every card size. */
 .gameEdition,.gameEdition:hover,.gameEdition:focus-visible{text-decoration:none}
-.fcEdition .footballArtwork{width:118%;max-width:none;height:auto;left:-9%;top:48px;opacity:.4;pointer-events:none}
+.fcEdition .footballArtwork{width:100%;max-width:none;height:auto;left:0;top:48px;opacity:.34;pointer-events:none}
 .gameSelection.compact .fcEdition .footballArtwork{width:100%;left:17%;top:-12px;opacity:.2}
-@media(max-width:480px){.fcEdition .footballArtwork{width:124%;left:-12%;top:58px}.gameSelection.compact .fcEdition .footballArtwork{width:110%;left:10%;top:-4px}}
+@media(max-width:480px){.fcEdition .footballArtwork{width:106%;left:-3%;top:58px}.gameSelection.compact .fcEdition .footballArtwork{width:110%;left:10%;top:-4px}}
 @media(hover:hover){.gameEdition:hover .editionCopy>strong{border-top-color:#ffffff90}}
